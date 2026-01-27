@@ -1,5 +1,5 @@
 #include <xt/efi.h>
-#include "printf.h"
+#include "../external/printf.h"
 
 void _putchar(char _ch) {
 
