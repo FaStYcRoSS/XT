@@ -1,0 +1,25 @@
+#include <efi/efi.h>
+
+EFI_STATUS EFIAPI EfiInitializeLib(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable);
+
+extern EFI_SYSTEM_TABLE* gST;
+extern EFI_HANDLE gImageHandle;
+extern EFI_BOOT_SERVICES* gBS;
+extern EFI_RUNTIME_SERVICES* gRT;
+
+EFI_STATUS EFIAPI _EfiAssert(CHAR16* lineno, CHAR16* file, CHAR16* expr, EFI_STATUS status);
+
+#define WIDEN2(x) L ## x
+#define WIDEN(x) WIDEN2(x)
+#define __WFILE__ WIDEN(__FILE__)
+
+#define STR(x) #x
+#define INT_TO_STR(x) WIDEN(STR(x))
+#define EfiAssert(x) _EfiAssert(INT_TO_STR(__LINE__), __WFILE__, INT_TO_STR(x), (x))
+
+#define EfiTry(x) do {EFI_STATUS result = x; if (EFI_ERROR(result)) return result;} while(0)
+
+
+EFI_STATUS EFIAPI EfiOutputString(CHAR16* str);
+EFI_STATUS EfiPrintLn(CHAR16* str, ...);
+EFI_STATUS EfiPrint(CHAR16* str, ...);
