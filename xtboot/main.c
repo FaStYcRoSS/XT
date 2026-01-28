@@ -2,7 +2,7 @@
 
 #include <xt/pe.h>
 
-typedef int(*KernelMainFunction)(void);
+typedef int(*KernelMainFunction)(KernelBootInfo* bootInfo);
 
 EFI_STATUS EFIAPI EfiLoadKernel(
     EFI_FILE* root, 
@@ -70,14 +70,8 @@ typedef struct PageTable {
 #define GET_PAGE_TABLE(page_table, pos) (PageTable*)((page_table)->entries[pos] & (~(0xfff | (1ull << 63))))
 #define SET_PAGE_TABLE(page_table, pos, entry, flags) ((page_table)->entries[pos] = (uint64_t)(entry) | flags)
 
-#define KERNEL_IMAGE_BASE 0xffffffff80000000
 
-typedef struct KernelBootInfo {
-    UINTN DescCount;
-    EFI_RUNTIME_SERVICES* RT;
-    void* ACPITable;
-    EFI_MEMORY_DESCRIPTOR descs[1];
-} KernelBootInfo;
+extern void __stdcall entry_to_kernel(void* stack_ptr, KernelMainFunction mainFunc, KernelBootInfo* bootinfo);
 
 //The entry point of our bootloader
 EFI_STATUS EFIAPI UefiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* sysTable) {
@@ -163,14 +157,25 @@ EFI_STATUS EFIAPI UefiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* sysTable) {
     gBS->GetMemoryMap(&MemoryMapBuffSize, NULL, &MapKey, &DescSize, &DescRevision);
     EfiPrintLn(L"MemoryMapBuffSize 0x%llx", MemoryMapBuffSize/DescSize);
     
-    
+    KernelBootInfo* bootInfo = NULL;
+    gBS->AllocatePool(EfiLoaderData, MemoryMapBuffSize+sizeof(KernelBootInfo), &bootInfo);
+    gBS->GetMemoryMap(MemoryMapBuffSize, &bootInfo->descs[0], &MapKey, &DescSize, &DescRevision);
+    bootInfo->CountTables = HIGHER_HALF_MEM(gST->NumberOfTableEntries);
+    bootInfo->RT = HIGHER_HALF_MEM(gRT);
+    bootInfo->DescCount = MemoryMapBuffSize/DescSize;
+    bootInfo->TablePtr = gST->ConfigurationTable;
+
+    gBS->ExitBootServices(ImageHandle, MapKey);
 
     //start kernel
     asm volatile("cli");
     asm volatile("mov %%rax, %%cr3;"::"a"(pml4));
 
+    void* StackTop = (void*)KERNEL_IMAGE_BASE;
+
     mainFunc = (uint64_t)mainFunc + KERNEL_IMAGE_BASE;
-    mainFunc();
+
+    entry_to_kernel(StackTop, mainFunc, bootInfo);
 
     while(1);
     return EFI_SUCCESS;
