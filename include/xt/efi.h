@@ -29,7 +29,8 @@ EFI_STATUS EfiPrint(CHAR16* str, ...);
 #define HIGHER_HALF_MEM(x) ((void*)((uint64_t)x+HIGH_HALF))
 
 typedef struct KernelBootInfo {
-    UINTN DescCount;
+    UINTN MemoryMapSize;
+    UINTN DescSize;
     EFI_RUNTIME_SERVICES* RT;
     EFI_CONFIGURATION_TABLE* TablePtr;
     UINTN CountTables;

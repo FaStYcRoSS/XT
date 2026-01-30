@@ -15,6 +15,7 @@ EFI_STATUS EFIAPI EfiLoadKernel(
 
     EfiTry(root->Open(root, &kernelFile, KernelPath, EFI_FILE_MODE_READ, 0));
 
+
     void* headers = NULL;
     EfiTry(gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, (EFI_PHYSICAL_ADDRESS*)&headers));
 
@@ -155,17 +156,17 @@ EFI_STATUS EFIAPI UefiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* sysTable) {
 
 
     gBS->GetMemoryMap(&MemoryMapBuffSize, NULL, &MapKey, &DescSize, &DescRevision);
-    EfiPrintLn(L"MemoryMapBuffSize 0x%llx", MemoryMapBuffSize/DescSize);
     
     KernelBootInfo* bootInfo = NULL;
-    gBS->AllocatePool(EfiLoaderData, MemoryMapBuffSize+sizeof(KernelBootInfo), &bootInfo);
-    gBS->GetMemoryMap(MemoryMapBuffSize, &bootInfo->descs[0], &MapKey, &DescSize, &DescRevision);
+    EfiAssert(gBS->AllocatePool(EfiLoaderData, MemoryMapBuffSize+sizeof(KernelBootInfo), &bootInfo));
+    EfiAssert(gBS->GetMemoryMap(&MemoryMapBuffSize, &bootInfo->descs[0], &MapKey, &DescSize, &DescRevision));
     bootInfo->CountTables = HIGHER_HALF_MEM(gST->NumberOfTableEntries);
     bootInfo->RT = HIGHER_HALF_MEM(gRT);
-    bootInfo->DescCount = MemoryMapBuffSize/DescSize;
+    bootInfo->MemoryMapSize = MemoryMapBuffSize;
+    bootInfo->DescSize = DescSize;
     bootInfo->TablePtr = gST->ConfigurationTable;
 
-    gBS->ExitBootServices(ImageHandle, MapKey);
+    EfiAssert(gBS->ExitBootServices(ImageHandle, MapKey));
 
     //start kernel
     asm volatile("cli");

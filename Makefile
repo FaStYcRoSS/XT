@@ -12,6 +12,7 @@ image: $(MODULES)
 	python tools/mkimage.py
 
 run: image
+	echo $(CURDIR)
 	qemu-system-x86_64 \
 	-D logs/log.txt -d in_asm -monitor stdio \
 	-bios ./build/ovmf-code-x86_64.fd \

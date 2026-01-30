@@ -1,9 +1,11 @@
 PROJECT_DIR = E:/Projects/XT
 
+UEFI_INCLUDE_DIR = D:/UEFI
+
 ARCH = x86_64
 PACK = w64-mingw32
 CC = $(ARCH)-$(PACK)-gcc
 
 
-OBJ_DIR = E:/Projects/XT/obj
-BUILD_DIR = E:/Projects/XT/build
+OBJ_DIR = $(PROJECT_DIR)/obj
+BUILD_DIR = $(PROJECT_DIR)/build

@@ -1,13 +1,25 @@
 
 #include <xt/efi.h>
 
-void outb(unsigned short port, unsigned char _ch) {
-    asm volatile("outb %%al, %%dx"::"d"(port),"a"(_ch));
-}
+#include <xt/kernel.h>
+#include <xt/memory.h>
 
-void kernel_main(KernelBootInfo* bootInfo) {
+XTResult xtMemoryInit(KernelBootInfo* bootInfo);
 
-    
+void xtKernelMain(KernelBootInfo* bootInfo) {
+
+    kprintf("hello, world from kernel!");
+
+    xtMemoryInit(bootInfo);
+    kprintf("memory was inited");
+
+    void* out = 0;
+
+    xtHeapAlloc(0x10, &out);
+    kprintf("allocate %p\n", out);
+    xtHeapFree(out);
+
+    kprintf("free %p\n", out);
 
     while(1);
     return;
