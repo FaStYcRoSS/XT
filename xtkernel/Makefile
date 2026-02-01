@@ -1,9 +1,12 @@
 include ../config.mk
 
-all: ../root/XT/xtkernel.exe
+all: ../obj/xtkernel/arch/$(ARCH) ../root/XT/xtkernel.exe
 
-SOURCES = $(wildcard *.c)
+SOURCES = $(wildcard *.c) $(wildcard arch/$(ARCH)/*.c)
 OBJS = $(patsubst %.c, ../obj/xtkernel/%.o, $(SOURCES)) ../obj/external/printf.o 
+
+../obj/xtkernel/arch/$(ARCH):
+	mkdir ..\obj\xtkernel\arch\$(ARCH)
 
 ../root/XT/xtkernel.exe: $(OBJS)
 	$(CC) -g $^ \

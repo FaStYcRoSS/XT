@@ -17,9 +17,10 @@ typedef signed long long int XTResult;
 #define XT_INVALID_PARAMETER   XT_ERROR(1)
 #define XT_NOT_IMPLEMENTED     XT_ERROR(2)
 #define XT_OUT_OF_MEMORY       XT_ERROR(3)
+#define XT_OUT_OF_BOUNDARY     XT_ERROR(4)
 
-#define xtTry(x) do {XTResult __result = x; if (XT_IS_ERROR(__result)) return __result;} while(0)
+#define XT_TRY(x) do {XTResult __result = x; if (XT_IS_ERROR(__result)) return __result;} while(0)
 
-
+#define XT_CHECK_NULL(x) do {if ((x) == NULL) return XT_INVALID_PARAMETER;} while(0)
 
 #endif

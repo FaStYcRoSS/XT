@@ -3,7 +3,19 @@ MODULES = xtboot bootstub xtkernel user libs
 
 .PHONY: all $(MODULES) image clean run
 
-all: image
+all: logs obj root home image
+
+logs:
+	mkdir $@
+
+obj:
+	mkdir $@
+
+root:
+	mkdir $@
+
+home:
+	mkdir $@
 
 $(MODULES):
 	$(MAKE) -C $@

@@ -1,6 +1,7 @@
 #include <xt/memory.h>
 #include <xt/kernel.h>
 #include <xt/efi.h>
+#include <xt/list.h>
 
 static uint8_t heap_data[256 * 1024];
 
@@ -96,6 +97,11 @@ const char* MemoryTypeStr[] = {
     "EfiUnacceptedMemoryType",
     "EfiMaxMemoryType"
 };
+
+
+
+XTList* memoryDescs = NULL;
+
 
 XTResult xtMemoryInit(KernelBootInfo* bootInfo) {
     XTHeapEntry* entry = (XTHeapEntry*)heap_data;
