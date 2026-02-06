@@ -1,6 +1,10 @@
 #ifndef __XT_RESULT_H__
 #define __XT_RESULT_H__
 
+#ifndef NULL
+#define NULL ((void*)0)
+#endif
+
 typedef signed long long int XTResult;
 
 #define XT_TYPE_MASK(x) ((x) << 59)
@@ -21,6 +25,6 @@ typedef signed long long int XTResult;
 
 #define XT_TRY(x) do {XTResult __result = x; if (XT_IS_ERROR(__result)) return __result;} while(0)
 
-#define XT_CHECK_NULL(x) do {if ((x) == NULL) return XT_INVALID_PARAMETER;} while(0)
+#define XT_CHECK_ARG_IS_NULL(x) do {if ((x) == NULL) return XT_INVALID_PARAMETER;} while(0)
 
 #endif

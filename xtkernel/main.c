@@ -4,22 +4,28 @@
 #include <xt/kernel.h>
 #include <xt/memory.h>
 
-XTResult xtMemoryInit(KernelBootInfo* bootInfo);
+XTResult xtMemoryInit();
+
+XTResult xtArchInit();
+
+KernelBootInfo* gKernelBootInfo = NULL;
 
 void xtKernelMain(KernelBootInfo* bootInfo) {
 
-    kprintf("hello, world from kernel!");
+    gKernelBootInfo = bootInfo;
+    xtArchInit();
+    xtDebugPrint("hello, world from kernel!\n");
+    xtMemoryInit();
 
-    xtMemoryInit(bootInfo);
-    kprintf("memory was inited");
+    xtDebugPrint("memory was inited\n");
 
     void* out = 0;
 
-    xtHeapAlloc(0x10, &out);
-    kprintf("allocate %p\n", out);
-    xtHeapFree(out);
+    XT_ASSERT(xtHeapAlloc(0x10, &out));
+    xtDebugPrint("allocate %p\n", out);
+    XT_ASSERT(xtHeapFree(out));
 
-    kprintf("free %p\n", out);
+    xtDebugPrint("free %p\n", out);
 
     while(1);
     return;

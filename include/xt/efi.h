@@ -1,3 +1,6 @@
+#ifndef __XT_EFI_H__
+#define __XT_EFI_H__
+
 #include <efi/efi.h>
 
 EFI_STATUS EFIAPI EfiInitializeLib(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable);
@@ -36,4 +39,6 @@ typedef struct KernelBootInfo {
     UINTN CountTables;
     EFI_MEMORY_DESCRIPTOR descs[1];
 } KernelBootInfo;
+
+#endif
 
