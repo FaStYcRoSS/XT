@@ -46,7 +46,11 @@ void xtKernelMain(KernelBootInfo* bootInfo) {
         0x1000,
         XT_MEM_USER | XT_MEM_READ | XT_MEM_WRITE | XT_MEM_EXEC
     ));
-
+    XT_ASSERT(xtUnsetPages(
+        cr3,
+        virtualAddr, 
+        0x1000
+    ));
 
 
 

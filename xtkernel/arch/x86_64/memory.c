@@ -198,36 +198,94 @@ XTResult xtSetPages(
 
 }
 
+// Вспомогательная функция: проверяет, есть ли в таблице хоть одна живая запись
+static int xtIsTableEmpty(PageTable* table) {
+    for (int i = 0; i < 512; i++) {
+        // Если хотя бы одна страница Present, таблица не пуста
+        if (table->entries[i] & P_PRESENT) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 XTResult xtUnsetPages(void* pageTable, void* virtual_address, uint64_t size) {
     XT_CHECK_ARG_IS_NULL(pageTable);
 
+    PageTable* pml4 = (PageTable*)pageTable;
+    uint64_t va64 = (uint64_t)virtual_address;
 
-    PageTable* _pageTable = (PageTable*)pageTable;
-    
-    uint64_t va64 = virtual_address;
     while (size) {
         uint64_t PML4I = (va64 >> 39) & 0x1ff;
         uint64_t PDPI = (va64 >> 30) & 0x1ff;
         uint64_t PDI = (va64 >> 21) & 0x1ff;
         uint64_t PTI = (va64 >> 12) & 0x1ff;
 
-        uint64_t page_size = 0;
+        uint64_t page_size = PAGE_4KB;
 
-        if ( (va64 % (1ull<<30))==0 && size >= (1ull<<30) ) {
-            page_size = 1ull<<30; // 1 GiB
-        } else if ( (va64 % (1ull<<21))==0 && size >= (1ull<<21) ) {
-            page_size = 1ull<<21; // 2 MiB
+        // --- Уровень 1: PML4 ---
+        if (!(pml4->entries[PML4I] & P_PRESENT)) {
+            page_size = PAGE_1GB * 512; // Пропускаем сразу 512 ГБ
+            goto next_step;
+        }
+        PageTable* pdpt = (PageTable*)(pml4->entries[PML4I] & ADDR_MASK);
+
+        // --- Уровень 2: PDPT ---
+        if (!(pdpt->entries[PDPI] & P_PRESENT)) {
+            page_size = PAGE_1GB;
+            goto next_step;
+        }
+
+        if (pdpt->entries[PDPI] & P_PS) { // Огромная страница 1ГБ
+            pdpt->entries[PDPI] = 0;
+            page_size = PAGE_1GB;
         } else {
-            page_size = 1ull<<12; // 4 KiB
+            PageTable* pd = (PageTable*)(pdpt->entries[PDPI] & ADDR_MASK);
+
+            // --- Уровень 3: PD ---
+            if (!(pd->entries[PDI] & P_PRESENT)) {
+                page_size = PAGE_2MB;
+                goto next_step;
+            }
+
+            if (pd->entries[PDI] & P_PS) { // Большая страница 2МБ
+                pd->entries[PDI] = 0;
+                page_size = PAGE_2MB;
+            } else {
+                PageTable* pt = (PageTable*)(pd->entries[PDI] & ADDR_MASK);
+
+                // --- Уровень 4: PT ---
+                pt->entries[PTI] = 0; // Зануляем PTE
+                page_size = PAGE_4KB;
+
+                // ПРОВЕРКА: Не стала ли PT пустой?
+                if (xtIsTableEmpty(pt)) {
+                    xtFreePages(pt, PAGE_4KB); // Освобождаем физическую страницу PT
+                    pd->entries[PDI] = 0;      // Стираем ссылку на неё в PD
+                }
+            }
+
+            // ПРОВЕРКА: Не стала ли PD пустой?
+            if (xtIsTableEmpty(pd)) {
+                xtFreePages(pd, PAGE_4KB);
+                pdpt->entries[PDPI] = 0;
+            }
         }
 
-        PageTable* pdp = NULL;
-        xtGetPageTable(_pageTable, PML4I, &pdp);
-        if (page_size == 1 << 30) {
-            
+        // ПРОВЕРКА: Не стала ли PDPT пустой?
+        if (xtIsTableEmpty(pdpt)) {
+            xtFreePages(pdpt, PAGE_4KB);
+            pml4->entries[PML4I] = 0;
         }
 
+    next_step:
+        // Сбрасываем кэш процессора для этого адреса
+        __asm__ volatile("invlpg (%0)" ::"r"(va64) : "memory");
 
+        va64 += page_size;
+        if (size >= page_size) size -= page_size;
+        else size = 0;
     }
+
     return XT_SUCCESS;
 }
