@@ -17,7 +17,9 @@ const char* results[] = {
     "INVALID_PARAMETER",
     "NOT_IMPLEMENTED",
     "OUT_OF_MEMORY",
-    "OUT_OF_BOUNDARY"
+    "OUT_OF_BOUNDARY",
+    "NOT_FOUND",
+    "NOT_EQUAL"
 };
 
 const char* xtResultToStr(XTResult result) {

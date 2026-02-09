@@ -201,30 +201,28 @@ uint64_t xtUEFITypeToXT(uint64_t type) {
         case EfiRuntimeServicesCode:
         case EfiRuntimeServicesData:
         case EfiPalCode:
-            return MEM_RESERVED;
+            return XT_MEM_RESERVED;
         case EfiConventionalMemory:
         case EfiBootServicesCode:
         case EfiBootServicesData:
-            return MEM_FREE;
+            return XT_MEM_FREE;
         case EfiUnacceptedMemoryType:
         case EfiUnusableMemory:
-            return MEM_UNUSABLE;
+            return XT_MEM_UNUSABLE;
         case EfiACPIMemoryNVS:
-            return MEM_NVS;
+            return XT_MEM_NVS;
         case EfiACPIReclaimMemory:
-            return MEM_ACPI;
+            return XT_MEM_ACPI;
         case EfiMemoryMappedIO:
         case EfiMemoryMappedIOPortSpace:
-            return MEM_MMIO;
+            return XT_MEM_MMIO;
         default:
-            return MEM_UNKNOWN;
+            return XT_MEM_UNKNOWN;
     }
 }
 
 // Глобальный список дескрипторов памяти
 XTList* memoryDescs = NULL;
-
-
 
 typedef struct XTMemoryMapEntry {
     uint64_t attributes;
@@ -234,13 +232,14 @@ typedef struct XTMemoryMapEntry {
 
 XTResult xtAllocatePages(void* ptr, uint64_t size, void** out) {
 
-    for (XTList* i = memoryDescs, *prev = NULL;i; xtGetNextList(i, &i), prev = i) {
+    //find first page with ptr.
+    for (XTList* i = memoryDescs, *prev = NULL;i; prev=i, xtGetNextList(i, &i)) {
         XTMemoryMapEntry* mapEntry = NULL;
         xtGetListData(i, &mapEntry);
         if (mapEntry->start == (uint64_t)ptr && mapEntry->length >= size) {
+            *out = mapEntry->start;
             mapEntry->start += size;
             mapEntry->length -= size;
-            *out = ptr;
             if (mapEntry->length == 0) {
                 XTList* next = NULL;
                 xtGetNextList(i, &next);
@@ -252,17 +251,115 @@ XTResult xtAllocatePages(void* ptr, uint64_t size, void** out) {
                 }
                 xtDestroyList(i);
             }
+            return XT_SUCCESS;
         }
     }
 
+    //find anything (if ptr is NULL)
+    for (XTList* i = memoryDescs, *prev = NULL;i; prev=i, xtGetNextList(i, &i)) {
+        XTMemoryMapEntry* mapEntry = NULL;
+        xtGetListData(i, &mapEntry);
+        if (mapEntry->length >= size) {
+            *out = mapEntry->start;
+            mapEntry->start += size;
+            mapEntry->length -= size;
+
+            if (mapEntry->length == 0) {
+                XTList* next = NULL;
+                xtGetNextList(i, &next);
+                if (prev) {
+                    xtSetNextList(prev, next);
+                }
+                else {
+                    memoryDescs = next;
+                }
+                xtDestroyList(i);
+            }
+            return XT_SUCCESS;
+        }
+    }
+    return XT_OUT_OF_MEMORY;
 }
 
 XTResult xtFreePages(void* ptr, uint64_t size) {
+    uint64_t addr = (uint64_t)ptr;
+    XTList *curr = memoryDescs;
+    XTList *prev = NULL;
 
+    // 1. Ищем позицию для вставки (поддерживаем сортировку по адресу)
+    while (curr) {
+        XTMemoryMapEntry* entry = NULL;
+        xtGetListData(curr, &entry);
+        if (entry->start > addr) break; // Нашли место: новый блок должен быть перед curr
+        
+        prev = curr;
+        xtGetNextList(curr, &curr);
+    }
+
+    // Теперь: prev — блок "слева" от нашего, curr — блок "справа"
+    
+    XTMemoryMapEntry* prevEntry = NULL;
+    if (prev) xtGetListData(prev, &prevEntry);
+    
+    XTMemoryMapEntry* currEntry = NULL;
+    if (curr) xtGetListData(curr, &currEntry);
+
+    // 2. Попытка склеить с ПРЕДЫДУЩИМ блоком (слева)
+    if (prevEntry && (prevEntry->start + prevEntry->length == addr)) {
+        prevEntry->length += size;
+        
+        // А теперь проверим, не склеится ли этот расширенный prev со следующим (curr)
+        if (currEntry && (prevEntry->start + prevEntry->length == currEntry->start)) {
+            prevEntry->length += currEntry->length;
+            
+            // Выбрасываем curr из списка, так как он поглощен блоком prev
+            XTList* nextAfterCurr = NULL;
+            xtGetNextList(curr, &nextAfterCurr);
+            xtSetNextList(prev, nextAfterCurr);
+            xtDestroyList(curr);
+        }
+        return XT_SUCCESS;
+    }
+
+    // 3. Попытка склеить со СЛЕДУЮЩИМ блоком (справа), если со вторым не вышло
+    if (currEntry && (addr + size == currEntry->start)) {
+        currEntry->start = addr;
+        currEntry->length += size;
+        return XT_SUCCESS;
+    }
+
+    // 4. Склеить не удалось — создаем новый узел в списке
+    XTMemoryMapEntry* newEntry = NULL;
+    XT_TRY(xtHeapAlloc(sizeof(XTMemoryMapEntry), &newEntry));
+    newEntry->start = addr;
+    newEntry->length = size;
+    newEntry->attributes = XT_MEM_FREE;
+
+    XTList* newNode = NULL;
+    xtCreateList(newEntry, &newNode);
+    
+    // Вставляем newNode между prev и curr
+    xtSetNextList(newNode, curr);
+    if (prev) {
+        xtSetNextList(prev, newNode);
+    } else {
+        memoryDescs = newNode; // Вставка в самое начало
+    }
+
+    return XT_SUCCESS;
 }
 
 XTResult xtMemoryDump() {
-    
+    for (XTList* l = memoryDescs;l;xtGetNextList(l, &l)) {
+        XTMemoryMapEntry* mapEntry = NULL;
+        xtGetListData(l, &mapEntry);
+        xtDebugPrint("0x%llx-0x%llx 0x%llx\n", 
+            mapEntry->start, 
+            mapEntry->length+mapEntry->start,
+            mapEntry->attributes
+        );
+    }
+    return XT_SUCCESS;
 }
 
 // Инициализация памяти

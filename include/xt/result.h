@@ -22,6 +22,8 @@ typedef signed long long int XTResult;
 #define XT_NOT_IMPLEMENTED     XT_ERROR(2)
 #define XT_OUT_OF_MEMORY       XT_ERROR(3)
 #define XT_OUT_OF_BOUNDARY     XT_ERROR(4)
+#define XT_NOT_FOUND           XT_ERROR(5)
+#define XT_NOT_EQUAL           XT_ERROR(6)
 
 #define XT_TRY(x) do {XTResult __result = x; if (XT_IS_ERROR(__result)) return __result;} while(0)
 

@@ -2,8 +2,9 @@ include ../config.mk
 
 all: ../obj/xtkernel/arch/$(ARCH) ../root/XT/xtkernel.exe
 
-SOURCES = $(wildcard *.c) $(wildcard arch/$(ARCH)/*.c)
-OBJS = $(patsubst %.c, ../obj/xtkernel/%.o, $(SOURCES)) ../obj/external/printf.o 
+ASM_SOURCES = $(wildcard arch/$(ARCH)/*.asm)
+SOURCES = $(wildcard *.c) $(wildcard arch/$(ARCH)/*.c) 
+OBJS = $(patsubst %.c, ../obj/xtkernel/%.o, $(SOURCES)) ../obj/external/printf.o  $(patsubst %.asm, ../obj/xtkernel/%.o, $(ASM_SOURCES))
 
 ../obj/xtkernel/arch/$(ARCH):
 	mkdir ..\obj\xtkernel\arch\$(ARCH)
@@ -17,6 +18,9 @@ OBJS = $(patsubst %.c, ../obj/xtkernel/%.o, $(SOURCES)) ../obj/external/printf.o
     -Wl,--minor-subsystem-version,0 \
     -Wl,--image-base,0xffffffff80000000 \
     -e xtKernelMain -o $@
+
+../obj/xtkernel/%.o:%.asm
+	nasm -f win64 -o $@ $< -g
 
 ../obj/xtkernel/%.o:%.c
 	$(CC) -c $< -o $@ -I $(UEFI_INCLUDE_DIR) \

@@ -1,7 +1,8 @@
 #include <xt/arch/x86_64.h>
 
-XTResult xtSerialInit();
+XTResult xtDTInit();
 
 XTResult xtArchInit() {
-    return xtSerialInit();
+    
+    return xtDTInit();
 }
