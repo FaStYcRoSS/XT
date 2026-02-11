@@ -3,6 +3,10 @@
 #include <xt/efi.h>
 #include <xt/list.h>
 
+#if defined(__x86_64__)
+#include <xt/arch/x86_64.h>
+#endif
+
 static uint8_t heap_data[256 * 1024];
 static char heap_initialized = 0;
 
@@ -231,6 +235,8 @@ typedef struct XTMemoryMapEntry {
 } XTMemoryMapEntry;
 
 XTResult xtAllocatePages(void* ptr, uint64_t size, void** out) {
+
+    size = size+((1ull << PAGE_SHIFT))&(~(1ull << PAGE_SHIFT));
 
     //find first page with ptr.
     for (XTList* i = memoryDescs, *prev = NULL;i; prev=i, xtGetNextList(i, &i)) {

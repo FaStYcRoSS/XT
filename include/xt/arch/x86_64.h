@@ -16,4 +16,18 @@ XTResult xtInB(uint16_t port, uint8_t* data);
 XTResult xtInW(uint16_t port, uint16_t* data);
 XTResult xtInL(uint16_t port, uint32_t* data);
 
+#include <stdint.h>
+
+typedef struct XTContext {
+    // Состояние, которое мы пушим вручную
+    uint64_t rax, rbx, rcx, rdx, rbp, rsi, rdi, r8, 
+                r9, r10, r11, r12, r13, r14, r15;
+    uint64_t interruptNumber;
+    uint64_t errorCode;
+    uint64_t rip;
+    uint64_t cs;
+    uint64_t rflags;
+    uint64_t rsp; // Указатель стека (пользовательский!)
+    uint64_t ss;
+} XTContext;
 #endif

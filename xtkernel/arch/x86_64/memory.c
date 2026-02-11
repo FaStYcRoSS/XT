@@ -85,20 +85,20 @@ XTResult xtGetPhysicalAddress(void* pageTable, void* virtualAddress, void** out)
     uint64_t pdpe = pdpt->entries[PDPI];
     if (!(pdpe & P_PRESENT)) return XT_NOT_FOUND;
     if (pdpe & P_PS) {
-        *out = (void*)(pdpe & ADDR_MASK);
+        *out = (void*)((pdpe & ADDR_MASK) | (va64 & (1ull << 30)));
         return XT_SUCCESS;
     }
     PageTable* pdp = (PageTable*)(pdpe & ADDR_MASK);
     uint64_t pde = pdp->entries[PDI];
     if (!(pde & P_PRESENT)) return XT_NOT_FOUND;
     if (pde & P_PS) {
-        *out = (void*)(pde & ADDR_MASK);
+        *out = (void*)((pde & ADDR_MASK) | (va64 & (1ull << 21)));
         return XT_SUCCESS;
     }
     PageTable* pd = (PageTable*)(pde & ADDR_MASK);
     uint64_t pte = pd->entries[PTI];
     if (!(pte & P_PRESENT)) return XT_NOT_FOUND;
-    *out = pte & ADDR_MASK;
+    *out = (void*)((pte & ADDR_MASK) | (va64 & (1ull << 12)));
     return XT_SUCCESS;
     
 

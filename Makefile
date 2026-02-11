@@ -26,7 +26,7 @@ image: $(MODULES)
 run: image
 	echo $(CURDIR)
 	qemu-system-x86_64 \
-	-D logs/log.txt -d in_asm -monitor stdio \
+	-D logs/log.txt -d in_asm,int -monitor stdio \
 	-bios ./build/ovmf-code-x86_64.fd \
 	-usb \
 	-no-reboot -no-shutdown \
