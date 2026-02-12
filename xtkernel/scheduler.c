@@ -6,9 +6,8 @@
 
 XTThread* currentThread = NULL;
 
-XTThread threads[64] = {
-
-};
+XTList* threads = NULL;
+XTList* currentThreadIterator = NULL;
 
 uint64_t threadCount = 0;
 
@@ -47,11 +46,13 @@ XTResult xtWakeUpThread(XTThread* thread) {
 }
 
 XTResult xtWakeUpThreads() {
-    for (uint64_t i = 0; i < threadCount; ++i) {
-        if (threads[i].state == XT_THREAD_SLEEP_STATE) {
-            threads[i].ticks -= 10;
-            if (threads[i].ticks == 0) {
-                xtWakeUpThread(&threads[i]);
+    for (XTList* i = threads; i; xtGetNextList(i, &i)) {
+        XTThread* thread = NULL;
+        xtGetListData(i, &thread);
+        if (thread->state == XT_THREAD_SLEEP_STATE) {
+            thread->ticks -= 10;
+            if (thread->ticks == 0) {
+                xtWakeUpThread(thread);
             }
         }
     }
@@ -74,22 +75,23 @@ void xtSchedule() {
     }
 
     // 3. Ищем следующий поток, который ГОТОВ к выполнению (RUN_STATE)
-    XTThread* startThread = currentThread;
+    XTList* startThreadIter = currentThreadIterator;
     
     while (1) {
         // Переходим к следующему
-        currentThread++;
-        if (currentThread >= threads + threadCount) {
-            currentThread = threads;
+        
+        xtGetNextList(currentThreadIterator, &currentThreadIterator);
+        if (currentThreadIterator == NULL) {
+            currentThreadIterator = threads;
         }
-
+        xtGetListData(currentThreadIterator, &currentThread);
         // Если нашли поток, который готов бежать — выходим из цикла поиска
         if (currentThread->state == XT_THREAD_RUN_STATE) {
             break;
         }
 
         // Защита от бесконечного цикла: если обошли все и никто не готов
-        if (currentThread == startThread) {
+        if (currentThreadIterator == startThreadIter) {
             // В идеале тут нужно переходить в Idle-поток (ожидание прерывания)
             // Но для начала просто выйдем
             currentThread = IdleThread;
@@ -119,7 +121,7 @@ XTResult xtCreateThread(PFNXTTHREADFUNC ThreadFunc, size_t size, void* arg, uint
     XT_CHECK_ARG_IS_NULL(out);
 
     uint64_t* stack_raw;
-    xtAllocatePages(NULL, 0x1000, (void**)&stack_raw);
+    XT_TRY(xtAllocatePages(NULL, 0x1000, (void**)&stack_raw));
     
     // 1. Находим конец страницы (стек растет вниз)
     // Обязательно используем uintptr_t для корректной арифметики!
@@ -130,7 +132,7 @@ XTResult xtCreateThread(PFNXTTHREADFUNC ThreadFunc, size_t size, void* arg, uint
     stack_top -= 40; 
 
     XTContext* ctx = NULL;
-    xtHeapAlloc(sizeof(XTContext), &ctx);
+    XT_TRY(xtHeapAlloc(sizeof(XTContext), &ctx));
 
     // Инициализируем "сохраненное" состояние
     ctx->rip = ThreadFunc;                    // Прерывания разрешены (IF=1)
@@ -142,11 +144,31 @@ XTResult xtCreateThread(PFNXTTHREADFUNC ThreadFunc, size_t size, void* arg, uint
 
     XTThread* result = NULL;
 
-    result = &threads[threadCount++];
-    result->id = threadCount-1;
-    if (threadCount == 1) {
+    if (threads == NULL) {
+        XT_TRY(xtHeapAlloc(sizeof(XTThread), &result));
+        XT_TRY(xtCreateList(result, &threads));
         currentThread = result;
+        currentThreadIterator = threads;
+        result->id = 0;
     }
+    else {
+        for (XTList* i = threads; i; xtGetNextList(i, &i)) {
+            XTThread* thread = NULL;
+            xtGetListData(i, &thread);
+            if (thread->state == XT_THREAD_TERMINATED_STATE) {
+                result = thread;
+            }
+        }
+    }
+
+    if (result == NULL) {
+        XT_TRY(xtHeapAlloc(sizeof(XTThread), &result));
+        XTList* newList = NULL;
+        XT_TRY(xtCreateList(result, &newList));
+        xtAppendList(threads, newList);
+        result->id = ++threadCount;
+    }
+
     result->context = ctx;
     result->result = 0;
     result->state = state;

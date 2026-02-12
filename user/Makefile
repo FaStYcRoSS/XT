@@ -1,2 +1,7 @@
-all:
-	echo boot
+USER_PROGRAMS = xtinit
+
+.PHONY: $(USER_PROGRAMS)
+
+$(USER_PROGRAMS):
+	$(MAKE) -C $@
+

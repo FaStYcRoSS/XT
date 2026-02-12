@@ -345,10 +345,10 @@ XTResult xtDTInit() {
     // Важно: LGDT просто загружает указатель. 
     // Чтобы изменения вступили в силу, нужно перезагрузить сегментные регистры.
     
-    xtAllocatePages(NULL, 0x1000, &idt);
+    idt = (GateEntry*)(0xffff800000000000);
 
     asm volatile("lgdt %0" : : "m"(_gdtr));
-    idtr.addr = idt;
+    idtr.addr = NULL;
     idtr.size = 0x1000 - 1;
     asm volatile("lidt %0" :: "m"(idtr));
     

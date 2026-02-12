@@ -200,8 +200,6 @@ const char* MemoryTypeStr[] = {
 uint64_t xtUEFITypeToXT(uint64_t type) {
     switch (type) {
         case EfiReservedMemoryType:
-        case EfiLoaderCode:
-        case EfiLoaderData:
         case EfiRuntimeServicesCode:
         case EfiRuntimeServicesData:
         case EfiPalCode:
@@ -209,6 +207,8 @@ uint64_t xtUEFITypeToXT(uint64_t type) {
         case EfiConventionalMemory:
         case EfiBootServicesCode:
         case EfiBootServicesData:
+        case EfiLoaderCode:
+        case EfiLoaderData:
             return XT_MEM_FREE;
         case EfiUnacceptedMemoryType:
         case EfiUnusableMemory:
@@ -383,6 +383,10 @@ XTResult xtMemoryInit() {
     
     while ((uint8_t*)desc < end) {
         // Создаем новую запись для каждого дескриптора
+        if (desc->PhysicalStart < 0x100000) {
+            desc = (EFI_MEMORY_DESCRIPTOR*)((uint8_t*)desc + gKernelBootInfo->DescSize);
+            continue;
+        }
         XTMemoryMapEntry* mapEntry = NULL;
         XTResult result = xtHeapAlloc(sizeof(XTMemoryMapEntry), (void**)&mapEntry);
         
@@ -390,7 +394,7 @@ XTResult xtMemoryInit() {
         mapEntry->start = desc->PhysicalStart;
         mapEntry->length = desc->NumberOfPages * 4096;
         mapEntry->attributes = xtUEFITypeToXT(desc->Type);
-        
+
         // Пытаемся объединить с предыдущей записью того же типа
         if (last_entry != NULL && 
             last_entry->attributes == mapEntry->attributes &&

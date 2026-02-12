@@ -1,9 +1,9 @@
 
-MODULES = xtboot bootstub xtkernel user libs
+MODULES = xtboot bootstub xtkernel user libs drivers
 
 .PHONY: all $(MODULES) image clean run
 
-all: logs obj root home image
+all: logs obj root home image initrd
 
 logs:
 	mkdir $@
@@ -17,16 +17,20 @@ root:
 home:
 	mkdir $@
 
+initrd:
+	mkdir $@
+
 $(MODULES):
 	$(MAKE) -C $@
 
-image: $(MODULES)
+./build/xtos.img: $(MODULES)
+	tar -c initrd > root/XT/xtinitrd
 	python tools/mkimage.py
 
-run: image
+run: ./build/xtos.img
 	echo $(CURDIR)
 	qemu-system-x86_64 \
-	-D logs/log.txt -d in_asm,int -monitor stdio \
+	-D logs/log.txt -d in_asm -monitor stdio \
 	-bios ./build/ovmf-code-x86_64.fd \
 	-usb \
 	-no-reboot -no-shutdown \

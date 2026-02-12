@@ -11,6 +11,13 @@ XTResult xtSwitchToThread(void);
 
 typedef XTResult(*PFNXTTHREADFUNC)(void);
 
+typedef struct XTProcess {
+    XTList* threads;
+    void*   pageTable;
+    XTProcess* parentProcess;
+} XTProcess;
+
+
 typedef struct XTThread {
     XTContext* context;
     XTResult result;
@@ -19,7 +26,9 @@ typedef struct XTThread {
     uint8_t privilage;
     uint16_t flags;
     uint64_t ticks; // ms
+    XTProcess* process;
 } XTThread;
+
 
 #define XT_THREAD_SLEEP_STATE      0
 #define XT_THREAD_RUN_STATE        1

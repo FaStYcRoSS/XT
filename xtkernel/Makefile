@@ -1,6 +1,6 @@
 include ../config.mk
 
-all: ../obj/xtkernel/arch/$(ARCH) ../root/XT/xtkernel.exe
+all: ../obj/xtkernel/arch/$(ARCH) ../root/XT/xtkernel.xte
 
 ASM_SOURCES = $(wildcard arch/$(ARCH)/*.asm)
 SOURCES = $(wildcard *.c) $(wildcard arch/$(ARCH)/*.c) 
@@ -9,11 +9,11 @@ OBJS = $(patsubst %.c, ../obj/xtkernel/%.o, $(SOURCES)) ../obj/external/printf.o
 ../obj/xtkernel/arch/$(ARCH):
 	mkdir ..\obj\xtkernel\arch\$(ARCH)
 
-../root/XT/xtkernel.exe: $(OBJS)
+../root/XT/xtkernel.xte: $(OBJS)
 	$(CC) -g $^ \
     -Wall -Wextra -Wpedantic \
     -mno-red-zone -ffreestanding -O3 -nostdlib \
-    -Wl,--subsystem,10 \
+    -Wl,--subsystem,33 \
     -Wl,--major-subsystem-version,2 \
     -Wl,--minor-subsystem-version,0 \
     -Wl,--image-base,0xffffffff80000000 \
