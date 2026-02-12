@@ -1,6 +1,6 @@
 section .text
 global xtSwitchToThread
-global xtStartScheduler
+global xtSwitchTo
 global xtDivizionException
 extern currentThread
 extern xtExceptionHandler
@@ -8,6 +8,7 @@ extern xtExceptionHandler
 %macro isr_err_stub 1
 global isr_stub_%1
 isr_stub_%1:
+    cli
     push qword %1
     push r15
     push r14
@@ -57,6 +58,7 @@ isr_stub_%1:
 %macro isr_no_err_stub 1
 isr_stub_%1:
 global isr_stub_%1
+    cli
     push qword 0
     push qword %1
     push r15
@@ -145,7 +147,7 @@ xtSwitchToThread:
     int 0x20
     ret
 
-xtStartScheduler:
+xtSwitchTo:
     mov rax, [rel currentThread]
     mov rsp, [rax]
 

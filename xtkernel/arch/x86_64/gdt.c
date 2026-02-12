@@ -217,6 +217,10 @@ XTResult xtInitializePIT(void) {
     return XT_SUCCESS;
 }
 
+void xtHalt() {
+    asm volatile("hlt;");
+}
+
 XTResult xtUnmaskIRQ(uint8_t irq) {
     uint16_t port;
     uint8_t value;

@@ -172,7 +172,7 @@ EFI_STATUS EFIAPI UefiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* sysTable) {
     asm volatile("cli");
     asm volatile("mov %%rax, %%cr3;"::"a"(pml4));
 
-    void* StackTop = (void*)KERNEL_IMAGE_BASE;
+    void* StackTop = (void*)(KERNEL_IMAGE_BASE-8);
 
     mainFunc = (uint64_t)mainFunc + KERNEL_IMAGE_BASE;
 

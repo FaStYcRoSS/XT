@@ -21,6 +21,8 @@ XTResult xtIndexList(XTList* l, uint64_t pos, XTList** out);
 
 XTResult xtDestroyList(XTList* list);
 
+XTResult xtRemoveFromList(XTList* list, XTList* toRemove);
+
 XTResult xtGetListData(XTList* list, void** data);
 
 XTResult xtListLength(XTList* list, uint64_t* length);

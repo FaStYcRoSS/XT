@@ -19,15 +19,24 @@ KernelBootInfo* gKernelBootInfo = NULL;
 
 #define KERNEL_IMAGE_BASE ((void*)(0xffffffff80000000))
 
+extern XTThread* currentThread;
+
+XTThread* firstThread = NULL;
+XTThread* secondThread = NULL;
+
 void Func1(const char* arg) {
-    while (1) {
+    for (uint64_t i = 0; i < 5; ++i) {
         xtDebugPrint("%s\n", arg);
+        if (currentThread == firstThread)
+            xtSleepThread(currentThread, 1000);
     }
+    xtTerminateThread(currentThread, XT_SUCCESS);
 }
 
-extern XTThread* currentThread;
-extern XTThread* nextThread;
-extern void xtStartScheduler();
+
+extern void xtSwitchTo();
+
+XTResult xtSchedulerInit();
 
 void xtKernelMain(KernelBootInfo* bootInfo) {
 
@@ -38,10 +47,15 @@ void xtKernelMain(KernelBootInfo* bootInfo) {
 
     xtArchInit();
 
-    xtCreateThread(Func1, 0x1000, "Thread 1", &currentThread);
-    xtCreateThread(Func1, 0x1000, "Thread 2", &nextThread);
+    xtSchedulerInit();
 
-    xtStartScheduler();
+    xtCreateThread(Func1, 0x1000, "Thread 1", XT_THREAD_RUN_STATE, &firstThread);
+    xtCreateThread(Func1, 0x1000, "Thread 2", XT_THREAD_RUN_STATE, &secondThread);
+
+    XTThread* three = NULL;
+    xtCreateThread(Func1, 0x1000, "Thread 3", XT_THREAD_RUN_STATE, &three);
+
+    xtSwitchTo();
 
     while(1);
     return;

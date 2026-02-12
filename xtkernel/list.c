@@ -91,6 +91,20 @@ XTResult xtIndexList(XTList* l, uint64_t pos, XTList** out) {
     return XT_SUCCESS;
 }
 
+XTResult xtRemoveFromList(XTList* list, XTList* toRemove) {
+    XT_CHECK_ARG_IS_NULL(list);
+    XT_CHECK_ARG_IS_NULL(toRemove);
+
+    for (;list->next && list->next == toRemove; list = list->next);
+    if (list->next == NULL) return XT_NOT_FOUND;
+
+    list->next = list->next->next;
+    xtDestroyList(toRemove);
+
+    return XT_SUCCESS;
+
+}
+
 XTResult xtDestroyList(XTList* list) {
     XT_CHECK_ARG_IS_NULL(list);
     XT_TRY(xtHeapFree(list));
