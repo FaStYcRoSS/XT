@@ -33,7 +33,7 @@ typedef struct {
 
 
 // Индексы: 0-null, 1-kcode, 2-kdata, 3-ucode, 4-udata
-GDTEntry gdt[6] = {
+GDTEntry gdt[7] = {
     {0}, // Null descriptor
     // Kernel Code (Base=0, Limit=0, Access=0x9A, Flags=0x20 [L bit set])
     { .limit0 = 0, .base0 = 0, .base1 = 0, .access = 0x9A, .flags_limit1 = 0x20, .base2 = 0 },
@@ -361,16 +361,39 @@ XTResult xtRdmsr(uint64_t code, uint64_t* value) {
 
 #define EFER_NXE (1 << 11)
 
+#define HIGH_MEM (0xffff800000000000)
+#define HIGHER_MEM(x) ((x) | HIGH_MEM)
+
 XTResult xtDTInit() {
     // Важно: LGDT просто загружает указатель. 
     // Чтобы изменения вступили в силу, нужно перезагрузить сегментные регистры.
     
     idt = (GateEntry*)(0xffff800000000000);
 
-    asm volatile("lgdt %0" : : "m"(_gdtr));
+
     idtr.addr = NULL;
     idtr.size = 0x1000 - 1;
     asm volatile("lidt %0" :: "m"(idtr));
+
+    uint64_t tssStackBottom = 0;
+
+    xtAllocatePages(NULL, 0x10000, &tssStackBottom);
+    tss.rsp0 = HIGHER_MEM(tssStackBottom + 0x10000);
+    xtDebugPrint("tss.rsp0 0x%016llx\n", tss.rsp0);
+    uint64_t tssPtr = &tss;
+    TSSDescriptor* tssDesc = &gdt[5];
+    tssDesc->low.base0 = tssPtr & 0xffff;
+    tssDesc->low.base1 = (tssPtr >> 16) & 0xff;
+    tssDesc->low.base2 = (tssPtr >> 24) & 0xff;
+    tssDesc->low.limit0 = sizeof(TSS)-1;
+    tssDesc->low.flags_limit1 = 0x40;
+    tssDesc->low.access = 0x89;
+    tssDesc->base3 = (tssPtr >> 32) & 0xffffffff;
+    tssDesc->reserved = 0;
+    uint16_t tssSegment = 0x5*8;
+    asm volatile("lgdt %0" : : "m"(_gdtr));
+
+    
     
     xtSetIRQ(0, isr_stub_0);
     xtSetIRQ(1, isr_stub_1);
@@ -409,6 +432,8 @@ XTResult xtDTInit() {
 
     xtInitializePIC();
     xtInitializePIT();
+
+    asm volatile("ltr %%ax"::"a"(tssSegment));
 
     uint64_t efer = 0;
     xtRdmsr(0xc0000080, &efer);

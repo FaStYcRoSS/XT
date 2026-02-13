@@ -79,6 +79,9 @@ global isr_stub_%1
 
     mov rax, [rel currentThread]
     mov [rax], rsp
+    mov rax, cr3
+    mov rax, [rax+32]
+    mov rax, [rax+0x8]
 
     sub rsp, 40
     call xtExceptionHandler
@@ -86,6 +89,9 @@ global isr_stub_%1
 
     mov rax, [rel currentThread]
     mov rsp, [rax]
+    mov rax, [rax+32]
+    mov rax, [rax+0x8]
+    mov cr3, rax
 
     pop rax
     pop rbx
@@ -150,7 +156,9 @@ xtSwitchToThread:
 xtSwitchTo:
     mov rax, [rel currentThread]
     mov rsp, [rax]
-
+    mov rax, [rax+32]
+    mov rax, [rax+0x8]
+    mov cr3, rax
     pop rax
     pop rbx
     pop rcx

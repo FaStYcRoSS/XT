@@ -112,6 +112,8 @@ uint64_t xtBuildFlags(uint64_t attr) {
     return flags;
 }
 
+
+
 XTResult xtSetPages(
     void* pageTable, 
     void* virtual_address,
@@ -185,7 +187,6 @@ XTResult xtSetPages(
                     _pa64 = pa64;
                 }
                 pt->entries[PTI] = (_pa64 & ADDR_MASK) | flags;
-                xtDebugPrint("pt 0x%llx pt->entries[%u] 0x%llx pa64 0x%llx\n", pt, PTI, pt->entries[PTI], pa64);
             }
         }
 

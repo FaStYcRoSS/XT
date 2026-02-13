@@ -40,8 +40,6 @@ extern void xtSwitchTo();
 
 XTResult xtSchedulerInit();
 
-XTResult xtCreateProcess(XTProcess** out);
-
 void* kernelPageTable = NULL;
 
 void xtKernelMain(KernelBootInfo* bootInfo) {
@@ -53,7 +51,7 @@ void xtKernelMain(KernelBootInfo* bootInfo) {
 
     xtArchInit();
 
-    xtSchedulerInit();
+    XT_ASSERT(xtSchedulerInit());
 
     xtDebugPrint("initrd 0x%llx\nframebuffer 0x%llx width=%u height %u\n", 
         bootInfo->initrd, bootInfo->framebuffer, bootInfo->width, bootInfo->height);
@@ -77,7 +75,11 @@ void xtKernelMain(KernelBootInfo* bootInfo) {
         XT_MEM_EXEC | XT_MEM_READ | XT_MEM_WRITE | XT_MEM_USER
     );
 
-    XT_ASSERT(xtCreateProcess(NULL));
+    XT_ASSERT(xtCreateProcess(
+        NULL,
+        0,
+        NULL
+    ));
 
     xtSwitchTo();
 
