@@ -341,6 +341,26 @@ extern void isr_stub_31();
 extern void isr_stub_32();
 extern void isr_stub_40();
 
+void xtSyscallHandler() {
+    xtDebugPrint("syscall\n");
+    while(1);
+}
+
+XTResult xtWrmsr(uint32_t code, uint64_t value) {
+    asm volatile("wrmsr;"::"d"(value >> 32), "a"(value & 0xffffffff), "c"(code));
+    return XT_SUCCESS;
+}
+
+XTResult xtRdmsr(uint64_t code, uint64_t* value) {
+    XT_CHECK_ARG_IS_NULL(value);
+    uint32_t low = 0, high = 0;
+    asm volatile("wrmsr;":"=d"(high), "=a"(low): "c"(code));
+    *value = low | (high << 32);
+    return XT_SUCCESS;
+}
+
+#define EFER_NXE (1 << 11)
+
 XTResult xtDTInit() {
     // Важно: LGDT просто загружает указатель. 
     // Чтобы изменения вступили в силу, нужно перезагрузить сегментные регистры.
@@ -389,6 +409,12 @@ XTResult xtDTInit() {
 
     xtInitializePIC();
     xtInitializePIT();
+
+    uint64_t efer = 0;
+    xtRdmsr(0xc0000080, &efer);
+    xtWrmsr(0xc0000080, efer | 0x1 | EFER_NXE);
+    xtWrmsr(0xc0000081, ((0x10ull << 16 )| 0x08ull) << 32);
+    xtWrmsr(0xc0000082, xtSyscallHandler);
 
 
     // После lgdt нужно сделать "far return" или "far jump" для обновления CS

@@ -4,6 +4,8 @@
 
 XTResult xtStringCmp(const char* left, const char* right, uint64_t max);
 
+
+
 XTResult xtFindSection(void* image, const char* sectionName, void** out) {
 
     XT_CHECK_ARG_IS_NULL(image);

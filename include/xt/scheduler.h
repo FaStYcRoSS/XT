@@ -14,7 +14,7 @@ typedef XTResult(*PFNXTTHREADFUNC)(void);
 typedef struct XTProcess {
     XTList* threads;
     void*   pageTable;
-    XTProcess* parentProcess;
+    struct XTProcess* parentProcess;
 } XTProcess;
 
 

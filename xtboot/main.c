@@ -146,9 +146,9 @@ EFI_STATUS EFIAPI UefiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* sysTable) {
     gBS->SetMem(pdp1, 4096, 0);
     //addresses from 0xffff800000000000-0xffff807fffffffff
     for (UINTN i = 0; i < 512; ++i) {
-        pdp1->entries[i] = (i << 30) | 0x83;
+        pdp1->entries[i] = (i << 30) | 0x87;
     }
-    SET_PAGE_TABLE(pml4, 0, pdp1, 0x03);
+    SET_PAGE_TABLE(pml4, 0, pdp1, 0x07);
     SET_PAGE_TABLE(pml4, 256, pdp1, 0x03);
 
     //addresses from 0xffffffff7ffe0000-0xfffffffffffffffff

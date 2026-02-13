@@ -65,8 +65,19 @@ void xtKernelMain(KernelBootInfo* bootInfo) {
     for (uint64_t i = 0; i < bootInfo->width * bootInfo->height; ++i) {
         framebuffer[i] = 0x0;
     }
-    
 
+    void* vdso = NULL;
+    xtFindSection(KERNEL_IMAGE_BASE, ".vdso", &vdso);
+    xtGetPhysicalAddress(kernelPageTable, vdso, &vdso);
+
+    xtSetPages(kernelPageTable, 
+        (void*)(0x00007ffffffff000),
+        vdso,
+        0x1000,
+        XT_MEM_EXEC | XT_MEM_READ | XT_MEM_WRITE | XT_MEM_USER
+    );
+
+    XT_ASSERT(xtCreateProcess(NULL));
 
     xtSwitchTo();
 

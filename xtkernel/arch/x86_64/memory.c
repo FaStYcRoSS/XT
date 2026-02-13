@@ -127,6 +127,7 @@ XTResult xtSetPages(
     uint64_t va64 = (uint64_t)virtual_address;
     uint64_t pa64 = (uint64_t)physical_address;
 
+    uint64_t directory_flags = 0x07;
     uint64_t flags = xtBuildFlags(attributes);
 
     while (size) {
@@ -145,7 +146,7 @@ XTResult xtSetPages(
             page_size = 1ull<<12; // 4 KiB
         }
         PageTable* pdpt = NULL;
-        XT_TRY(xtGetOrMakePageTable(pml4, PML4I, &pdpt, flags));
+        XT_TRY(xtGetOrMakePageTable(pml4, PML4I, &pdpt, directory_flags));
         //xtDebugPrint("va 0x%llx pdpt 0x%llx\n",va64, pdpt);
         if (page_size == (1ull << 30)) {
             uint64_t _pa64 = 0;
@@ -160,7 +161,7 @@ XTResult xtSetPages(
         else {
 
             PageTable* pd = NULL;
-            XT_TRY(xtGetOrMakePageTable(pdpt, PDPI, &pd, flags));
+            XT_TRY(xtGetOrMakePageTable(pdpt, PDPI, &pd, directory_flags));
             //xtDebugPrint("va 0x%llx pd 0x%llx\n",va64, pd);
             uint64_t _pa64 = 0;
             if (pa64 == (uint64_t)(-1)) {
@@ -174,7 +175,7 @@ XTResult xtSetPages(
             }
             else {
                 PageTable* pt = NULL;
-                XT_TRY(xtGetOrMakePageTable(pd, PDI, &pt, flags));
+                XT_TRY(xtGetOrMakePageTable(pd, PDI, &pt, directory_flags));
                 //xtDebugPrint("va 0x%llx pt 0x%llx\n",va64, pt);
                 uint64_t _pa64 = 0;
                 if (pa64 == (uint64_t)(-1)) {
@@ -184,6 +185,7 @@ XTResult xtSetPages(
                     _pa64 = pa64;
                 }
                 pt->entries[PTI] = (_pa64 & ADDR_MASK) | flags;
+                xtDebugPrint("pt 0x%llx pt->entries[%u] 0x%llx pa64 0x%llx\n", pt, PTI, pt->entries[PTI], pa64);
             }
         }
 
