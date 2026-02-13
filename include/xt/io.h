@@ -33,10 +33,10 @@ typedef struct XTFileBuffer {
     PFNXTREADBUFFER  ReadBuffer;
 } XTFileBuffer;
 
-typedef XTResult(*PFNXTWRITEFILE)(XTFile* file, const void* data, uint64_t* written);
-typedef XTResult(*PFNXTREADFILE)(XTFile* file, void* data, uint64_t* read);
+typedef XTResult(*PFNXTWRITEFILE)(XTFile* file, const void* data, uint64_t count, uint64_t* written);
+typedef XTResult(*PFNXTREADFILE)(XTFile* file, void* data, uint64_t count, uint64_t* read);
 typedef XTResult(*PFNXTDEVICEIOCTL)(XTFile* file, uint64_t code, void* data);
-typedef XTResult(*PFNXTMAPFILE)(XTFile* file, uint64_t offset, uint64_t size, void** out);
+typedef XTResult(*PFNXTMAPFILE)(XTFile* file, uint64_t* size, void** out);
 typedef XTResult(*PFNXTUNMAPFILE)(XTFile* file, void* ptr, uint64_t size);
 typedef XTResult(*PFNXTOPENDIRECTORY)(XTMountPoint* mp, const char* name, XTDirectory** out);
 typedef XTResult(*PFNXTREADDIRECTORY)(XTDirectory* dir, XTFileInfo* fileInfo);
@@ -83,12 +83,23 @@ struct XTFile {
     void* data;
 };
 
-XTResult xtWriteFile(XTFile* file, const void* data, uint64_t* written);
-XTResult xtReadFile(XTFile* file, void* data, uint64_t* read);
+#define XT_FILE_MODE_READ           0x01
+#define XT_FILE_MODE_WRITE          0x02
+#define XT_FILE_MODE_SHARE          0x04
+#define XT_FILE_MODE_CREATE         0x08
+#define XT_FILE_ATTRIBUTE_DIRECTORY 0x10
+
+
+
+XTResult xtWriteFile(XTFile* file, const void* data, uint64_t size, uint64_t* written);
+XTResult xtReadFile(XTFile* file, void* data, uint64_t size, uint64_t* read);
 XTResult xtOpenFile(const char* path, uint64_t flags, XTFile** out);
 XTResult xtCloseFile(XTFile* file);
 XTResult xtMount(const char* path, const char* filesystem, XTFile* dev);
 XTResult xtUnmount(const char* path);
+
+XTResult xtMapFile(XTFile* file, uint64_t* size, void** out);
+XTResult xtUnmapFile(XTFile* file, void* ptr, uint64_t size);
 
 XTResult xtWriteToBuffer(XTFile* file, const void* data, uint64_t* written);
 

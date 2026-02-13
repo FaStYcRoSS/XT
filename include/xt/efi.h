@@ -38,6 +38,7 @@ typedef struct KernelBootInfo {
     EFI_CONFIGURATION_TABLE* TablePtr;
     UINTN CountTables;
     void* initrd;
+    uint64_t initrdSize;
     void* framebuffer;
     int32_t width, height;
     EFI_MEMORY_DESCRIPTOR descs[1];

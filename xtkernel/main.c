@@ -42,6 +42,8 @@ XTResult xtSchedulerInit();
 
 void* kernelPageTable = NULL;
 
+XTResult xtFileSystemInit();
+
 void xtKernelMain(KernelBootInfo* bootInfo) {
     asm volatile("mov %%cr3, %%rax":"=a"(kernelPageTable));
 
@@ -53,16 +55,12 @@ void xtKernelMain(KernelBootInfo* bootInfo) {
 
     XT_ASSERT(xtSchedulerInit());
 
-    xtDebugPrint("initrd 0x%llx\nframebuffer 0x%llx width=%u height %u\n", 
+    xtDebugPrint("boot initrd 0x%llx\nframebuffer 0x%llx width=%u height %u\n", 
         bootInfo->initrd, bootInfo->framebuffer, bootInfo->width, bootInfo->height);
     
-    xtRamDiskInit();
+    XT_ASSERT(xtRamDiskInit());
 
     uint32_t* framebuffer = bootInfo->framebuffer;
-
-    for (uint64_t i = 0; i < bootInfo->width * bootInfo->height; ++i) {
-        framebuffer[i] = 0x0;
-    }
 
     void* vdso = NULL;
     xtFindSection(KERNEL_IMAGE_BASE, ".vdso", &vdso);
@@ -74,6 +72,14 @@ void xtKernelMain(KernelBootInfo* bootInfo) {
         0x1000,
         XT_MEM_EXEC | XT_MEM_READ | XT_MEM_WRITE | XT_MEM_USER
     );
+
+    XTFile* xtinit = NULL;
+    uint64_t size = 0;
+    void* initbase = 0;
+    XT_ASSERT(xtOpenFile("/initrd/xtinit.xte", XT_FILE_MODE_READ, &xtinit));
+    XT_ASSERT(xtMapFile(xtinit, &size, &initbase));
+    xtDebugPrint("initbase 0x%llx size 0x%llx\n", initbase, size);
+    userProgram = initbase;
 
     XT_ASSERT(xtCreateProcess(
         NULL,
