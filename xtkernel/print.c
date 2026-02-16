@@ -37,7 +37,7 @@ int xtDebugPrint(const char* format, ...) {
 
     uint64_t written = n;
 
-    xtWriteFile(gSerialDevice, buff, &written);
+    xtWriteFile(gSerialDevice, buff, 0, written, &written);
 
     va_end(va);
     return n;

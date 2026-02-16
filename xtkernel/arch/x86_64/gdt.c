@@ -89,6 +89,7 @@ IDTR idtr = {
 extern XTThread* currentThread;
 
 const char* registers[] = {
+    "cr2",
     "rax", "rbx", "rcx", "rdx",
     "rbp", "rsi", "rdi",
     "r8", "r9", "r10", "r11",
@@ -97,164 +98,9 @@ const char* registers[] = {
     "rflags", "rsp", "ss"
 };
 
-#include <xt/result.h>
-#include <stdint.h>
-
-/* Частота PIT в Гц (10 мс = 100 Гц) */
-#define PIT_FREQUENCY_HZ 100
-
-/* Векторы прерываний для PIC */
-#define PIC1_OFFSET 0x20  // Master PIC map to int 32 (0x20)
-#define PIC2_OFFSET 0x28  // Slave PIC map to int 40 (0x28)
-
-/* Инициализация PIC (8259A) и ремаппинг прерываний */
-XTResult xtInitializePIC(void);
-
-/* Инициализация PIT (8253/8254) на заданную частоту */
-XTResult xtInitializePIT(void);
-
-/* Вспомогательная функция для маскирования IRQ (опционально) */
-XTResult xtMaskIRQ(uint8_t irq);
-XTResult xtUnmaskIRQ(uint8_t irq);
-#include <xt/arch/x86_64.h>
-#include <xt/result.h>
-
-/* Порты PIC */
-#define PIC1_COMMAND    0x20
-#define PIC1_DATA       0x21
-#define PIC2_COMMAND    0xA0
-#define PIC2_DATA       0xA1
-
-/* Команды PIC */
-#define ICW1_ICW4       0x01        /* ICW4 (not) needed */
-#define ICW1_SINGLE     0x02        /* Single (cascade) mode */
-#define ICW1_INTERVAL4  0x04        /* Call address interval 4 */
-#define ICW1_LEVEL      0x08        /* Level triggered (edge) mode */
-#define ICW1_INIT       0x10        /* Initialization - required! */
-
-#define ICW4_8086       0x01        /* 8086/88 (MCS-80/85) mode */
-#define ICW4_AUTO       0x02        /* Auto (normal) EOI */
-#define ICW4_BUF_SLAVE  0x08        /* Buffered mode/slave */
-#define ICW4_BUF_MASTER 0x0C        /* Buffered mode/master */
-#define ICW4_SFNM       0x10        /* Special fully nested (not) */
-
-/* Порты PIT */
-#define PIT_CHANNEL0    0x40
-#define PIT_COMMAND     0x43
-#define PIT_BASE_FREQ   1193182
-
-/* Небольшая задержка для старого железа при работе с IO */
-static XTResult io_wait(void) {
-    // Запись в неиспользуемый порт (обычно 0x80 используется для POST кодов)
-    // заставляет CPU подождать несколько микросекунд
-    return xtOutB(0x80, 0); 
-}
-
-XTResult xtInitializePIC(void) {
-    uint8_t a1, a2;
-
-    // Сохраним текущие маски (хотя мы их перепишем ниже, но для корректности чтения)
-    XT_TRY(xtInB(PIC1_DATA, &a1));
-    XT_TRY(xtInB(PIC2_DATA, &a2));
-
-    // ICW1: Запуск инициализации (в каскадном режиме)
-    XT_TRY(xtOutB(PIC1_COMMAND, ICW1_INIT | ICW1_ICW4));
-    XT_TRY(io_wait());
-    XT_TRY(xtOutB(PIC2_COMMAND, ICW1_INIT | ICW1_ICW4));
-    XT_TRY(io_wait());
-
-    // ICW2: Вектора прерываний (Master -> 0x20, Slave -> 0x28)
-    XT_TRY(xtOutB(PIC1_DATA, PIC1_OFFSET));
-    XT_TRY(io_wait());
-    XT_TRY(xtOutB(PIC2_DATA, PIC2_OFFSET));
-    XT_TRY(io_wait());
-
-    // ICW3: Настройка каскадирования
-    // Master PIC: бит 2 (4) указывает, что Slave подключен к IRQ2
-    XT_TRY(xtOutB(PIC1_DATA, 4));
-    XT_TRY(io_wait());
-    // Slave PIC: число 2 указывает, что он подключен к IRQ2 мастера
-    XT_TRY(xtOutB(PIC2_DATA, 2));
-    XT_TRY(io_wait());
-
-    // ICW4: Режим 8086
-    XT_TRY(xtOutB(PIC1_DATA, ICW4_8086));
-    XT_TRY(io_wait());
-    XT_TRY(xtOutB(PIC2_DATA, ICW4_8086));
-    XT_TRY(io_wait());
-
-    // Восстановление масок или установка дефолтных
-    // Сейчас мы замаскируем ВСЕ прерывания, кроме таймера (IRQ0), 
-    // чтобы случайно не получить прерывание до настройки IDT.
-    // 0xFE = 1111 1110 (0-й бит = 0 -> размаскирован)
-    XT_TRY(xtOutB(PIC1_DATA, 0xFE)); 
-    XT_TRY(xtOutB(PIC2_DATA, 0xFF));
-
-    return XT_SUCCESS;
-}
-
-XTResult xtInitializePIT(void) {
-    // Целевая частота 100 Гц (10 мс)
-    // Divisor = 1193182 / 100 = 11931
-    uint32_t divisor = PIT_BASE_FREQ / PIT_FREQUENCY_HZ;
-    
-    // Проверка на переполнение 16-битного счетчика
-    if (divisor > 65535) {
-        return XT_INVALID_PARAMETER; 
-    }
-
-    // Отправка команды:
-    // 00 (Channel 0) | 11 (Access lo/hi byte) | 011 (Mode 3 Square Wave) | 0 (Binary)
-    // 0x36
-    XT_TRY(xtOutB(PIT_COMMAND, 0x36));
-    XT_TRY(io_wait());
-
-    // Отправка делителя (Low byte, затем High byte)
-    XT_TRY(xtOutB(PIT_CHANNEL0, (uint8_t)(divisor & 0xFF)));
-    XT_TRY(io_wait());
-    XT_TRY(xtOutB(PIT_CHANNEL0, (uint8_t)((divisor >> 8) & 0xFF)));
-    
-    return XT_SUCCESS;
-}
 
 void xtHalt() {
     asm volatile("hlt;");
-}
-
-XTResult xtUnmaskIRQ(uint8_t irq) {
-    uint16_t port;
-    uint8_t value;
-
-    if (irq < 8) {
-        port = PIC1_DATA;
-    } else {
-        port = PIC2_DATA;
-        irq -= 8;
-    }
-
-    XT_TRY(xtInB(port, &value));
-    value &= ~(1 << irq); // Сбросить бит, чтобы размаскировать
-    XT_TRY(xtOutB(port, value));
-
-    return XT_SUCCESS;
-}
-
-XTResult xtMaskIRQ(uint8_t irq) {
-    uint16_t port;
-    uint8_t value;
-
-    if (irq < 8) {
-        port = PIC1_DATA;
-    } else {
-        port = PIC2_DATA;
-        irq -= 8;
-    }
-
-    XT_TRY(xtInB(port, &value));
-    value |= (1 << irq); // Установить бит, чтобы замаскировать
-    XT_TRY(xtOutB(port, value));
-
-    return XT_SUCCESS;
 }
 
 void xtRegDump() {
@@ -267,33 +113,68 @@ void xtRegDump() {
 
 }
 
-/* Реализация в pic_pit.c */
-#define PIC_EOI         0x20
-
-XTResult xtPicSendEOI(uint8_t irq) {
-    // Если прерывание от Slave PIC (IRQ >= 8), нужно уведомить Slave
-    if (irq >= 8) {
-        XT_TRY(xtOutB(PIC2_COMMAND, PIC_EOI));
-    }
-
-    // Master PIC уведомляем в любом случае (даже если пришло от Slave)
-    XT_TRY(xtOutB(PIC1_COMMAND, PIC_EOI));
-
-    return XT_SUCCESS;
-}
+void xtSendEOI();
 
 void xtSchedule();
 
-void xtExceptionHandler() {
+int returned = 0;
 
-    if (currentThread->context->interruptNumber == 0x20) {
-        xtSchedule();
-        xtPicSendEOI(0);
-    }
-    else {
-        xtRegDump();
+void xtInvalidatePage(void* page) {
+    asm volatile("invlpg (%0)" :: "r" (page) : "memory");
+}
+
+void xtPageFaultHandler() {
+    XTProcess* currentProcess = NULL;
+    xtGetCurrentProcess(&currentProcess);
+    XTList* prev = NULL;
+    XTContext* ctx = currentThread->context;
+    uint64_t errorVM = ctx->cr2;
+    XTVirtualMap* mapEntry = NULL;
+    xtDebugPrint("error page 0x%llx\n", errorVM);
+    XTResult result = xtFindVirtualMap(
+        currentProcess,
+        errorVM,
+        &mapEntry,
+        &prev
+    );
+    if (result == XT_NOT_FOUND) {
+        xtDebugPrint("segfault\n");
         while(1);
     }
+    void* newPage = NULL;
+    XT_TRY(xtAllocatePages(NULL, 0x1000, &newPage));
+    errorVM = (errorVM) & (~(0xfff));
+    xtSetPages(
+        currentProcess->pageTable,
+        errorVM,
+        newPage,
+        0x1000,
+        mapEntry->attr
+    );
+    xtInvalidatePage(errorVM);
+}
+
+void xtExceptionHandler() {
+
+    XTContext* ctx = currentThread->context;
+
+    if (ctx->interruptNumber == 0x20) {
+        asm volatile("cli");
+        xtSchedule();
+        tss.rsp0 = currentThread->kernelStack;
+        xtSendEOI();
+        return;
+    }
+    if (ctx->interruptNumber == 0xe) {
+        xtPageFaultHandler();
+        return;
+    }
+    // Обработка других исключений, например #GP (13) или #DF (8)
+    xtDebugPrint("Unhandled Exception: %d ErrorCode: %x\n", 
+        ctx->interruptNumber,
+        ctx->errorCode // Если оно у тебя есть в структуре
+    );
+    xtHalt();
 }
 
 XTResult xtSetIRQ(uint8_t vector, PFNXTIRQFunc irqFunc) {
@@ -341,60 +222,7 @@ extern void isr_stub_31();
 extern void isr_stub_32();
 extern void isr_stub_40();
 
-void xtSyscallHandler() {
-    xtDebugPrint("syscall\n");
-    while(1);
-}
-
-XTResult xtWrmsr(uint32_t code, uint64_t value) {
-    asm volatile("wrmsr;"::"d"(value >> 32), "a"(value & 0xffffffff), "c"(code));
-    return XT_SUCCESS;
-}
-
-XTResult xtRdmsr(uint64_t code, uint64_t* value) {
-    XT_CHECK_ARG_IS_NULL(value);
-    uint32_t low = 0, high = 0;
-    asm volatile("wrmsr;":"=d"(high), "=a"(low): "c"(code));
-    *value = low | (high << 32);
-    return XT_SUCCESS;
-}
-
-#define EFER_NXE (1 << 11)
-
-#define HIGH_MEM (0xffff800000000000)
-#define HIGHER_MEM(x) ((x) | HIGH_MEM)
-
-XTResult xtDTInit() {
-    // Важно: LGDT просто загружает указатель. 
-    // Чтобы изменения вступили в силу, нужно перезагрузить сегментные регистры.
-    
-    idt = (GateEntry*)(0xffff800000000000);
-
-
-    idtr.addr = NULL;
-    idtr.size = 0x1000 - 1;
-    asm volatile("lidt %0" :: "m"(idtr));
-
-    uint64_t tssStackBottom = 0;
-
-    xtAllocatePages(NULL, 0x10000, &tssStackBottom);
-    tss.rsp0 = HIGHER_MEM(tssStackBottom + 0x10000);
-    xtDebugPrint("tss.rsp0 0x%016llx\n", tss.rsp0);
-    uint64_t tssPtr = &tss;
-    TSSDescriptor* tssDesc = &gdt[5];
-    tssDesc->low.base0 = tssPtr & 0xffff;
-    tssDesc->low.base1 = (tssPtr >> 16) & 0xff;
-    tssDesc->low.base2 = (tssPtr >> 24) & 0xff;
-    tssDesc->low.limit0 = sizeof(TSS)-1;
-    tssDesc->low.flags_limit1 = 0x40;
-    tssDesc->low.access = 0x89;
-    tssDesc->base3 = (tssPtr >> 32) & 0xffffffff;
-    tssDesc->reserved = 0;
-    uint16_t tssSegment = 0x5*8;
-    asm volatile("lgdt %0" : : "m"(_gdtr));
-
-    
-    
+void xtSetIRQs() {
     xtSetIRQ(0, isr_stub_0);
     xtSetIRQ(1, isr_stub_1);
     xtSetIRQ(2, isr_stub_2);
@@ -429,17 +257,46 @@ XTResult xtDTInit() {
     xtSetIRQ(31, isr_stub_31);
     xtSetIRQ(32, isr_stub_32);
     xtSetIRQ(40, isr_stub_40);
+}
 
-    xtInitializePIC();
-    xtInitializePIT();
+
+
+XTResult xtPITInit();
+
+XTResult xtDTInit() {
+    // Важно: LGDT просто загружает указатель. 
+    // Чтобы изменения вступили в силу, нужно перезагрузить сегментные регистры.
+    
+    idt = (GateEntry*)(0xffff800000000000);
+
+
+    idtr.addr = idt;
+    idtr.size = 0x1000 - 1;
+    asm volatile("lidt %0" :: "m"(idtr));
+
+    uint64_t tssStackBottom = 0;
+
+    xtAllocatePages(NULL, 0x4000, &tssStackBottom);
+    tss.IST[0] = HIGHER_MEM(tssStackBottom + 0x4000);
+    uint64_t tssPtr = &tss;
+    TSSDescriptor* tssDesc = &gdt[5];
+    tssDesc->low.base0 = tssPtr & 0xffff;
+    tssDesc->low.base1 = (tssPtr >> 16) & 0xff;
+    tssDesc->low.base2 = (tssPtr >> 24) & 0xff;
+    tssDesc->low.limit0 = sizeof(TSS)-1;
+    tssDesc->low.flags_limit1 = 0x40;
+    tssDesc->low.access = 0x89;
+    tssDesc->base3 = (tssPtr >> 32) & 0xffffffff;
+    tssDesc->reserved = 0;
+    uint16_t tssSegment = 0x5*8;
+    asm volatile("lgdt %0" : : "m"(_gdtr));
+
+    xtPITInit();
+    xtSetIRQs();
+
 
     asm volatile("ltr %%ax"::"a"(tssSegment));
 
-    uint64_t efer = 0;
-    xtRdmsr(0xc0000080, &efer);
-    xtWrmsr(0xc0000080, efer | 0x1 | EFER_NXE);
-    xtWrmsr(0xc0000081, ((0x10ull << 16 )| 0x08ull) << 32);
-    xtWrmsr(0xc0000082, xtSyscallHandler);
 
 
     // После lgdt нужно сделать "far return" или "far jump" для обновления CS

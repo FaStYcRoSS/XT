@@ -29,7 +29,7 @@ EFI_STATUS EfiPrint(CHAR16* str, ...);
 
 #define KERNEL_IMAGE_BASE 0xffffffff80000000
 #define HIGH_HALF 0xffff800000000000
-#define HIGHER_HALF_MEM(x) ((void*)((uint64_t)x+HIGH_HALF))
+#define HIGHER_HALF_MEM(x) ((void*)((uint64_t)x | (HIGH_HALF)))
 
 typedef struct KernelBootInfo {
     UINTN MemoryMapSize;

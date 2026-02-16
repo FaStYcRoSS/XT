@@ -2,13 +2,14 @@ section .text
 global xtSwitchToThread
 global xtSwitchTo
 global xtDivizionException
+global xtSyscallHandler
 extern currentThread
 extern xtExceptionHandler
+extern xtSyscallArray
 
 %macro isr_err_stub 1
 global isr_stub_%1
 isr_stub_%1:
-    cli
     push qword %1
     push r15
     push r14
@@ -26,8 +27,14 @@ isr_stub_%1:
     push rbx
     push rax
 
+    mov rax, cr2
+    push rax
+
     mov rax, [rel currentThread]
     mov [rax], rsp
+    mov rcx, cr3
+    mov rax, [rax+32]
+    mov rcx, [rax+0x8]
 
     sub rsp, 40
     call xtExceptionHandler
@@ -35,7 +42,11 @@ isr_stub_%1:
 
     mov rax, [rel currentThread]
     mov rsp, [rax]
+    mov rax, [rax+32]
+    mov rax, [rax+0x8]
+    mov cr3, rax
 
+    pop rax
     pop rax
     pop rbx
     pop rcx
@@ -58,7 +69,6 @@ isr_stub_%1:
 %macro isr_no_err_stub 1
 isr_stub_%1:
 global isr_stub_%1
-    cli
     push qword 0
     push qword %1
     push r15
@@ -77,11 +87,14 @@ global isr_stub_%1
     push rbx
     push rax
 
+    mov rax, cr2
+    push rax
+
     mov rax, [rel currentThread]
     mov [rax], rsp
-    mov rax, cr3
+    mov rcx, cr3
     mov rax, [rax+32]
-    mov rax, [rax+0x8]
+    mov rcx, [rax+0x8]
 
     sub rsp, 40
     call xtExceptionHandler
@@ -93,6 +106,7 @@ global isr_stub_%1
     mov rax, [rax+0x8]
     mov cr3, rax
 
+    pop rax
     pop rax
     pop rbx
     pop rcx
@@ -149,6 +163,26 @@ isr_no_err_stub 32
 
 isr_no_err_stub 40
 
+xtSyscallHandler:
+
+    push rcx
+    push r11
+    mov r11, rsp
+    mov rcx, [rel currentThread]
+    mov rsp, [rcx+40]
+    mov rcx, r10
+    push r11
+    lea r10, [rel xtSyscallArray]
+    call [r10+rax*8]
+    pop r11
+    mov rsp, r11
+    pop r11
+    pop rcx
+    o64 sysret
+
+
+
+
 xtSwitchToThread:
     int 0x20
     ret
@@ -159,6 +193,7 @@ xtSwitchTo:
     mov rax, [rax+32]
     mov rax, [rax+0x8]
     mov cr3, rax
+    pop rax
     pop rax
     pop rbx
     pop rcx

@@ -20,6 +20,7 @@ XTResult xtInL(uint16_t port, uint32_t* data);
 
 typedef struct XTContext {
     // Состояние, которое мы пушим вручную
+    uint64_t cr2;
     uint64_t rax, rbx, rcx, rdx, rbp, rsi, rdi, r8, 
                 r9, r10, r11, r12, r13, r14, r15;
     uint64_t interruptNumber;
@@ -30,4 +31,7 @@ typedef struct XTContext {
     uint64_t rsp; // Указатель стека (пользовательский!)
     uint64_t ss;
 } XTContext;
+
+
+
 #endif

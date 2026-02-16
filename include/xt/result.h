@@ -7,7 +7,7 @@
 
 typedef signed long long int XTResult;
 
-#define XT_TYPE_MASK(x) ((x) << 59)
+#define XT_TYPE_MASK(x) ((x) << 60)
 #define XT_ERROR_MASK XT_TYPE_MASK(0xfull)
 #define XT_WARNING_MASK XT_TYPE_MASK(0x8ull)
 

@@ -4,7 +4,7 @@
 #include <xt/kernel.h>
 #include <xt/string.h>
 
-XTResult xtWriteFile(XTFile* file, const void* data, uint64_t size, uint64_t* written) {
+XTResult xtWriteFile(XTFile* file, const void* data, uint64_t offset, uint64_t size, uint64_t* written) {
     XT_CHECK_ARG_IS_NULL(file);
     XT_CHECK_ARG_IS_NULL(data);
 
@@ -17,7 +17,7 @@ XTResult xtWriteFile(XTFile* file, const void* data, uint64_t size, uint64_t* wr
         written = &tempWritten;
     }
 
-    return file->IO->WriteFile(file, data, size, written);
+    return file->IO->WriteFile(file, data, offset, size, written);
 
 }
 
@@ -109,10 +109,8 @@ XTResult xtFileSystemInit() {
 }
 
 XTResult xtOpenFile(const char* path, uint64_t flags, XTFile** out) {
-    xtDebugPrint("openfile name %s\n", path);
     XTPathNode* pathNode = NULL;
     char* left = NULL;
-    xtDebugPrint("find path root 0x%llx\n", root);
     XT_TRY(xtFindPathNode(path, &pathNode, &left));
     if (pathNode->mp == NULL) return XT_NOT_FOUND;
     if (flags & XT_FILE_MODE_CREATE) {
@@ -123,7 +121,6 @@ XTResult xtOpenFile(const char* path, uint64_t flags, XTFile** out) {
     if (pathNode->mp->fs == NULL) return XT_NOT_IMPLEMENTED;
     if (pathNode->mp->fs->IO == NULL) return XT_NOT_IMPLEMENTED;
     if (pathNode->mp->fs->IO->OpenFile == NULL) return XT_NOT_IMPLEMENTED;
-    xtDebugPrint("path node 0x%llx\n", pathNode);
     return pathNode->mp->fs->IO->OpenFile(pathNode->mp, left, flags & ~(XT_FILE_MODE_CREATE), out);
 }
 
@@ -194,7 +191,7 @@ XTResult xtUnmount(const char* path) {
 
 }
 
-XTResult xtReadFile(XTFile* file, void* data, uint64_t size, uint64_t* read) {
+XTResult xtReadFile(XTFile* file, void* data, uint64_t offset, uint64_t size, uint64_t* read) {
     XT_CHECK_ARG_IS_NULL(file);
     XT_CHECK_ARG_IS_NULL(data);
 
@@ -208,28 +205,28 @@ XTResult xtReadFile(XTFile* file, void* data, uint64_t size, uint64_t* read) {
         read = &tempRead;
     }
 
-    return file->IO->ReadFile(file, data, size, read);
+    return file->IO->ReadFile(file, data, offset, size, read);
 }
 
-XTResult xtMapFile(XTFile* file, uint64_t* size, void** out) {
+XTResult xtMapFile(XTFile* file, uint64_t offset, uint64_t* size, void** out) {
     XT_CHECK_ARG_IS_NULL(file);
     XT_CHECK_ARG_IS_NULL(size);
     XT_CHECK_ARG_IS_NULL(out);
 
     if (file->IO == NULL) return XT_NOT_IMPLEMENTED;
     if (file->IO->MapFile == NULL) return XT_NOT_IMPLEMENTED;
-    return file->IO->MapFile(file, size, out);
+    return file->IO->MapFile(file, offset, size, out);
 
 }
 
-XTResult xtUnmapFile(XTFile* file, void* ptr, uint64_t size) {
+XTResult xtUnmapFile(XTFile* file, uint64_t offset, void* ptr, uint64_t size) {
     XT_CHECK_ARG_IS_NULL(file);
     XT_CHECK_ARG_IS_NULL(size);
     XT_CHECK_ARG_IS_NULL(ptr);
 
     if (file->IO == NULL) return XT_NOT_IMPLEMENTED;
     if (file->IO->UnmapFile == NULL) return XT_NOT_IMPLEMENTED;
-    return file->IO->UnmapFile(file, ptr, size);
+    return file->IO->UnmapFile(file, offset, ptr, size);
 }
 
 XTResult xtWriteToBuffer(XTFile* file, const void* data, uint64_t* written) {

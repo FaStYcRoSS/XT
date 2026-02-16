@@ -19,4 +19,7 @@ const char* xtResultToStr(XTResult result);
 
 extern KernelBootInfo* gKernelBootInfo;
 
+#define HIGH_MEM (0xffff800000000000)
+#define HIGHER_MEM(x) (((uint64_t) (x)) | HIGH_MEM)
+
 #endif

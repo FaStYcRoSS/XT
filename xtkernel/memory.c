@@ -7,7 +7,7 @@
 #include <xt/arch/x86_64.h>
 #endif
 
-static uint8_t heap_data[256 * 1024];
+static uint8_t heap_data[64 * 1024];
 static char heap_initialized = 0;
 
 typedef struct XTHeapEntry {
@@ -18,38 +18,54 @@ typedef struct XTHeapEntry {
     // Данные начинаются здесь
 } XTHeapEntry;
 
+typedef struct XTHeap {
+    XTHeapEntry* heap_start;
+    uint64_t size;
+} XTHeap;
+
+XTHeap* heaps = NULL;
+
 // Размер заголовка без выравнивания
 #define HEAP_HEADER_SIZE (sizeof(XTHeapEntry))
 
 // Минимальный размер выделяемого блока
 #define MIN_BLOCK_SIZE (HEAP_HEADER_SIZE + 16)
 
-// Начало кучи
-static XTHeapEntry* heap_start = NULL;
+static XTHeap static_heap_meta;
+static XTList static_heap_list_node;
 
-// Инициализация кучи
 XTResult xtHeapInit() {
     if (heap_initialized) return XT_SUCCESS;
+
+    // 1. Настраиваем статический буфер
+    uintptr_t start = (uintptr_t)heap_data;
+    if (start % 16 != 0) start = (start + 15) & ~15;
     
-    // Выравниваем начало кучи
-    heap_start = (XTHeapEntry*)heap_data;
-    uintptr_t aligned_start = (uintptr_t)heap_start;
-    if (aligned_start % 16 != 0) {
-        aligned_start = (aligned_start + 15) & ~15;
-    }
-    heap_start = (XTHeapEntry*)aligned_start;
+    uint64_t usable_size = sizeof(heap_data) - (start - (uintptr_t)heap_data);
     
-    // Инициализируем первый блок как свободный
-    uint64_t heap_size = sizeof(heap_data) - (aligned_start - (uintptr_t)heap_data);
-    heap_size = heap_size & ~15;  // Выравниваем размер
+    // Инициализируем первый блок внутри данных
+    xtHeapSetupBlock((void*)start, usable_size & ~15);
+
+    // 2. Регистрируем эту кучу в списке heaps
+    static_heap_meta.heap_start = (XTHeapEntry*)start;
+    static_heap_meta.size = usable_size;
     
-    heap_start->size = heap_size;
-    heap_start->used = 0;
-    heap_start->next = NULL;
-    heap_start->prev = NULL;
-    
+    // Настраиваем узел списка вручную (без alloc!), чтобы избежать рекурсии
+    xtSetListData(&static_heap_list_node, &static_heap_meta);
+    xtSetNextList(&static_heap_list_node, NULL);
+    heaps = &static_heap_list_node;
+
     heap_initialized = 1;
     return XT_SUCCESS;
+}
+
+// Вспомогательная функция для разметки куска памяти под кучу
+void xtHeapSetupBlock(void* memory, uint64_t size) {
+    XTHeapEntry* first_block = (XTHeapEntry*)memory;
+    first_block->size = size;
+    first_block->used = 0;
+    first_block->next = NULL;
+    first_block->prev = NULL;
 }
 
 // Выделение памяти
@@ -69,43 +85,73 @@ XTResult xtHeapAlloc(uint64_t size, void** out) {
     if (needed_size < MIN_BLOCK_SIZE) {
         needed_size = MIN_BLOCK_SIZE;
     }
+
+    for (XTList *l = heaps; l; xtGetNextList(l, &l)) {
+        XTHeap* heap = NULL;
+        xtGetListData(l, &heap);
+        XTHeapEntry* current = heap->heap_start;
     
-    XTHeapEntry* current = heap_start;
-    
-    // Поиск подходящего свободного блока
-    while (current != NULL) {
-        if (!current->used && current->size >= needed_size) {
-            // Можно ли разделить блок?
-            if (current->size >= needed_size + MIN_BLOCK_SIZE) {
-                // Создаем новый свободный блок
-                XTHeapEntry* new_block = (XTHeapEntry*)((char*)current + needed_size);
-                new_block->size = current->size - needed_size;
-                new_block->used = 0;
-                new_block->next = current->next;
-                new_block->prev = current;
-                
-                // Обновляем связи соседей
-                if (current->next != NULL) {
-                    current->next->prev = new_block;
+        // Поиск подходящего свободного блока
+        while (current != NULL) {
+            if (!current->used && current->size >= needed_size) {
+                // Можно ли разделить блок?
+                if (current->size >= needed_size + MIN_BLOCK_SIZE) {
+                    // Создаем новый свободный блок
+                    XTHeapEntry* new_block = (XTHeapEntry*)((char*)current + needed_size);
+                    new_block->size = current->size - needed_size;
+                    new_block->used = 0;
+                    new_block->next = current->next;
+                    new_block->prev = current;
+                    
+                    // Обновляем связи соседей
+                    if (current->next != NULL) {
+                        current->next->prev = new_block;
+                    }
+                    
+                    // Обновляем текущий блок
+                    current->size = needed_size;
+                    current->next = new_block;
                 }
                 
-                // Обновляем текущий блок
-                current->size = needed_size;
-                current->next = new_block;
+                // Помечаем блок как занятый
+                current->used = 1;
+                
+                // Возвращаем указатель на данные
+                *out = (void*)((char*)current + HEAP_HEADER_SIZE);
+                
+                return XT_SUCCESS;
             }
             
-            // Помечаем блок как занятый
-            current->used = 1;
-            
-            // Возвращаем указатель на данные
-            *out = (void*)((char*)current + HEAP_HEADER_SIZE);
-            
-            return XT_SUCCESS;
+            current = current->next;
         }
-        
-        current = current->next;
+
     }
-    return XT_OUT_OF_MEMORY;
+    
+    void* page_raw = NULL;
+    // Выделяем 16КБ (4 страницы по 4КБ)
+    XT_TRY(xtAllocatePages(NULL, 0x4000, &page_raw));
+    page_raw = HIGHER_MEM(page_raw);
+
+    // 1. В начале страницы кладем структуру управления XTHeap
+    XTHeap* newHeapMeta = (XTHeap*)page_raw;
+
+    // 2. Остальная часть страницы — это блоки данных
+    // Выравниваем начало данных (отступаем sizeof(XTHeap) + выравнивание)
+    uintptr_t data_start = (uintptr_t)page_raw + sizeof(XTHeap);
+    data_start = (data_start + 15) & ~15;
+
+    newHeapMeta->heap_start = (XTHeapEntry*)data_start;
+    newHeapMeta->size = 0x4000 - (data_start - (uintptr_t)page_raw);
+
+    // ИНИЦИАЛИЗИРУЕМ первый блок в новой куче! (Это то, чего не хватало)
+    xtHeapSetupBlock(newHeapMeta->heap_start, newHeapMeta->size);
+
+    // 3. Добавляем в список. 
+    // ВНИМАНИЕ: xtAppendList не должен вызывать xtHeapAlloc внутри, 
+    // иначе будет рекурсия. Лучше выделить место под узел списка прямо в этой же странице.
+    XTList* newNode = (XTList*)((char*)data_start + sizeof(XTHeapEntry) + 32);
+
+    return xtHeapAlloc(size, out);
 }
 
 // Освобождение памяти
@@ -148,33 +194,7 @@ XTResult xtHeapFree(void* ptr) {
     return XT_SUCCESS;
 }
 
-// Статистика кучи
-XTResult xtHeapGetStats(uint64_t* total, uint64_t* used, uint64_t* free_blocks) {
-    if (!heap_initialized) {
-        xtHeapInit();
-    }
-    
-    uint64_t total_mem = 0;
-    uint64_t used_mem = 0;
-    uint64_t free_count = 0;
-    
-    XTHeapEntry* current = heap_start;
-    while (current != NULL) {
-        total_mem += current->size;
-        if (current->used) {
-            used_mem += current->size;
-        } else {
-            free_count++;
-        }
-        current = current->next;
-    }
-    
-    if (total) *total = total_mem;
-    if (used) *used = used_mem;
-    if (free_blocks) *free_blocks = free_count;
-    
-    return XT_SUCCESS;
-}
+
 
 // Ваши функции преобразования типов памяти
 const char* MemoryTypeStr[] = {

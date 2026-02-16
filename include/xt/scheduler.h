@@ -2,7 +2,7 @@
 #define __XT_SCHEDULER_H__
 
 #include <xt/list.h>
-
+#include <xt/io.h>
 #ifdef __x86_64__
 #include <xt/arch/x86_64.h>
 #endif
@@ -22,15 +22,52 @@ typedef struct XTProcess {
     XTList* threads;
     void*   pageTable;
     struct XTProcess* parentProcess;
+    struct XTList* childs;
     XTList* memoryMap;
-    XTList* handles;
+    XTDescriptorTable* tables[8];
 } XTProcess;
 
-XTResult xtVirtualAlloc(XTProcess* process, void* start, uint64_t size, uint64_t attr, void** out);
-XTResult xtVirtualFree(XTProcess* process, void* start, uint64_t size);
+XTResult xtDuplicateHandle(
+    XTProcess* process,
+    uint64_t position,
+    uint32_t access,
+    uint32_t type,
+    void* desc
+);
+
+XTResult xtGetHandle(
+    XTProcess* process,
+    uint64_t handle,
+    XTDescriptor** out
+);
+
+XTResult xtCreateContext(void* kernelStack, uint64_t state, uint64_t func, uint64_t arg, uint64_t stack);
+
+XTResult xtCreateVirtualMapEntry(
+    void* virtualStart,
+    void* physicalStart,
+    uint64_t size,
+    uint64_t attr,
+    XTVirtualMap** out
+);
+
+XTResult xtInsertVirtualMap(
+    XTProcess* process,
+    void* virtualStart,
+    void* physicalAddress,
+    uint64_t size,
+    uint64_t attr
+);
+
+XTResult xtFindVirtualMap(
+    XTProcess* process,
+    void* ptr,
+    XTVirtualMap** out,
+    XTList** prev
+);
 
 typedef struct XTThread {
-    XTContext* context; //0x0
+    void* context; //0x0
     XTResult result; //8
     uint32_t id; //16
     uint8_t state; //20
@@ -38,6 +75,7 @@ typedef struct XTThread {
     uint16_t flags; //22
     uint64_t ticks; //24
     XTProcess* process;//32
+    void* kernelStack; //40
 } XTThread;
 
 

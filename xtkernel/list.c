@@ -2,11 +2,6 @@
 
 #include <xt/list.h>
 
-struct XTList {
-    void* data;
-    struct XTList* next;
-};
-
 XTResult xtCreateList(void* data, XTList** out) {
     XT_CHECK_ARG_IS_NULL(out);
     XTList* result = NULL;
@@ -17,12 +12,20 @@ XTResult xtCreateList(void* data, XTList** out) {
     return XT_SUCCESS;
 }
 
+XTResult xtSetListData(XTList* list, void* data) {
+    XT_CHECK_ARG_IS_NULL(list);
+    XT_CHECK_ARG_IS_NULL(data);
+    list->data = data;
+    return XT_SUCCESS;
+}
+
 XTResult xtGetListData(XTList* list, void** data) {
 
     XT_CHECK_ARG_IS_NULL(list);
     XT_CHECK_ARG_IS_NULL(data);
 
     *data = list->data;
+    return XT_SUCCESS;
 }
 
 XTResult xtAppendList(XTList* l, XTList* to_append) {

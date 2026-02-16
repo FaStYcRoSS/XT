@@ -45,31 +45,30 @@ typedef struct TarFileData {
     uint64_t attr;
 } TarFileData;
 
-XTResult tarReadFile(XTFile* file, void* data, uint64_t count, uint64_t* read) {
+XTResult tarReadFile(XTFile* file, void* data, uint64_t offset, uint64_t count, uint64_t* read) {
 
     TarFileData* fileData = file->data;
     XTFile* dev = file->mountPoint->device;
-    dev->seek = fileData->ptrToData + file->seek;
-    return xtReadFile(dev, data, count, read);
+    uint64_t seek = fileData->ptrToData + offset;
+    return xtReadFile(dev, data, seek, count, read);
 
 }
 
-XTResult tarMapFile(XTFile* file, uint64_t* size, void** out) {
+XTResult tarMapFile(XTFile* file, uint64_t offset, uint64_t* size, void** out) {
 
     TarFileData* fileData = file->data;
     XTFile* dev = file->mountPoint->device;
-    dev->seek = fileData->ptrToData + file->seek;
     *size = fileData->fileSize;
-    XT_TRY(xtMapFile(dev, size, out));
+    XT_TRY(xtMapFile(dev, offset + fileData->ptrToData, size, out));
     return XT_SUCCESS;
 }
 
-XTResult tarUnmapFile(XTFile* file, void* ptr, uint64_t size) {
+XTResult tarUnmapFile(XTFile* file, uint64_t offset, void* ptr, uint64_t size) {
     TarFileData* fileData = file->data;
     if (size == 0) {
         size = fileData->fileSize;
     }
-    return xtUnmapFile(file, ptr, size);
+    return xtUnmapFile(file, offset, ptr, size);
 }
 
 XTFileIO fileIO = {
@@ -83,25 +82,21 @@ XTResult tarMount(XTMountPoint* mp) {
 }
 
 XTResult tarOpenFile(XTMountPoint* mp, const char* name, uint64_t flags, XTFile** out) {
-    xtDebugPrint("name %s\n", name);
-    uint64_t oldseek = mp->device->seek;
+    uint64_t seek = 0;
     while (1) {
         Tar header = { 0 };
         uint64_t read = 0;
-        XTResult result = xtReadFile(mp->device, &header, sizeof(Tar), &read);
-        xtDebugPrint("after read\n", header.filename);
+        XTResult result = xtReadFile(mp->device, &header, seek, sizeof(Tar), &read);
         if (result == XT_END_OF_FILE) {
-            mp->device->seek = oldseek;
             return XT_NOT_FOUND;
         }
-        xtDebugPrint("header.filename %s\n", header.filename);
         if (xtStringCmp(header.filename, name, 100) == XT_SUCCESS) {
             XTFile* file = NULL;
             XT_TRY(xtHeapAlloc(sizeof(XTFile), &file));
             TarFileData* fileData = NULL;
             XT_TRY(xtHeapAlloc(sizeof(TarFileData), &fileData));
             xtDuplicateString(header.filename, &fileData->name);
-            fileData->ptrToData = mp->device->seek+sizeof(Tar);
+            fileData->ptrToData = seek+sizeof(Tar);
             fileData->fileSize = oct2bin(header.size, 12);
             fileData->mktime = oct2bin(header.mtime, 12);
             int type = oct2bin(header.typeflag, 1);
@@ -113,11 +108,10 @@ XTResult tarOpenFile(XTMountPoint* mp, const char* name, uint64_t flags, XTFile*
             file->IO = &fileIO;
             file->mountPoint = mp;
             file->buffer = NULL;
-            file->seek = 0;
             *out = file;
             break;
         }
-        mp->device->seek += sizeof(Tar);
+        seek += sizeof(Tar);
     }
 
     return XT_SUCCESS;
@@ -140,19 +134,19 @@ typedef struct XTInitrdData {
 
 XTInitrdData initrdData = { 0 };
 
-XTResult initrdReadFile(XTFile* file, const void* data, uint64_t size, uint64_t* read) {
+XTResult initrdReadFile(XTFile* file, const void* data, uint64_t offset, uint64_t size, uint64_t* read) {
     XTInitrdData* _initrdData = file->data;
-    if (file->seek >= _initrdData->size) {
+    if (offset >= _initrdData->size) {
         return XT_END_OF_FILE;
     }
-    xtCopyMem(data, (void*)(file->seek + (char*)_initrdData->ptr), size);
+    xtCopyMem(data, (void*)(offset + (char*)_initrdData->ptr), size);
     *read = size;
     return XT_SUCCESS;
 }
 
-XTResult initrdMapFile(XTFile* file, uint64_t* size, void** out) {
+XTResult initrdMapFile(XTFile* file, uint64_t offset, uint64_t* size, void** out) {
     XTInitrdData* _initrdData = file->data;
-    *out = (char*)_initrdData->ptr + file->seek;
+    *out = (char*)_initrdData->ptr + offset;
     return XT_SUCCESS;
 }
 
@@ -172,7 +166,6 @@ XTResult xtRamDiskInit() {
 
     initrdData.ptr = gKernelBootInfo->initrd;
     initrdData.size = gKernelBootInfo->initrdSize;
-    xtDebugPrint("ramdisk initrd 0x%llx ramdisk size 0x%llx\n", initrdData.ptr, initrdData.size);
     initrd.data = &initrdData;
     initrd.IO = &initrdIO;
 

@@ -6,9 +6,9 @@
 
 XTFile* gSerialDevice = NULL;
 
-static XTResult xtSerialWrite(XTFile* file, const void* data, uint64_t* written) {
+XTResult xtSerialWrite(XTFile* file, const void* data, uint64_t offset, uint64_t count, uint64_t* written) {
 
-    for (uint64_t i = 0; i < *written && i < 4096; ++i) {
+    for (uint64_t i = 0; i < count; ++i) {
         xtOutB(0x3f8, ((char*)data)[i]);
     }
     return XT_SUCCESS;

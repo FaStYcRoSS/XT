@@ -7,6 +7,12 @@
 
 typedef struct XTList XTList;
 
+struct XTList {
+    void* data;
+    struct XTList* next;
+};
+
+
 XTResult xtCreateList(void* data, XTList** out);
 
 XTResult xtAppendList(XTList* l, XTList* to_append);
@@ -24,6 +30,7 @@ XTResult xtDestroyList(XTList* list);
 XTResult xtRemoveFromList(XTList* list, XTList* toRemove);
 
 XTResult xtGetListData(XTList* list, void** data);
+XTResult xtSetListData(XTList* list, void* data);
 
 XTResult xtListLength(XTList* list, uint64_t* length);
 

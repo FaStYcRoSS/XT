@@ -15,7 +15,7 @@ OBJS = $(patsubst %.c, ../../obj/user/xtinit/%.o, $(SOURCES))
 ../../initrd/xtinit.xte: $(OBJS)
 	$(CC) -g $^ \
     -Wall -Wextra -Wpedantic \
-    -mno-red-zone -ffreestanding -O3 -nostdlib \
+    -mno-red-zone -ffreestanding -nostdlib \
     -Wl,--subsystem,32 \
     -Wl,--major-subsystem-version,2 \
     -Wl,--minor-subsystem-version,0 \
