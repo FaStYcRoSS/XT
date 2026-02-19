@@ -11,6 +11,8 @@
 #define XT_STDOUT          ((uint64_t)1)
 #define XT_STDERR          ((uint64_t)2)
 
+typedef XTResult(*PFNXTMAIN)(const char** args);
+
 XTResult xtMain(const char** args);
 
 XTResult xtUserWriteFile(

@@ -2,7 +2,7 @@
 #define __XT_ARCH_X86_64_H__
 
 #include <xt/result.h>
-
+#include <xt/scheduler.h>
 #include <stdint.h>
 
 #define PAGE_SHIFT 12
@@ -31,7 +31,6 @@ typedef struct XTContext {
     uint64_t rsp; // Указатель стека (пользовательский!)
     uint64_t ss;
 } XTContext;
-
 
 
 #endif

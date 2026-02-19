@@ -1,6 +1,6 @@
 #include <xt/scheduler.h>
 #include <xt/memory.h>
-
+#include <xt/linker.h>
 #include <xt/kernel.h>
 
 XTResult xtDuplicateHandle(
@@ -49,7 +49,6 @@ XTResult xtGetHandle(
 #include <xt/kernel.h>
 #include <xt/string.h>
 
-
 extern void* kernelPageTable;
 
 extern XTThread* currentThread;
@@ -96,67 +95,32 @@ XTResult xtCreateProcess(
     xtCopyMem((char*)newPageTable + 0x7f8, (char*)kernelPageTable + 0x7f8, 0x808);
     
     result->pageTable = newPageTable;
-    void* beginOfProcess = NULL;
-    xtSetPages(
-        newPageTable,
-        NULL,
-        NULL,
-        0x1000,
-        XT_MEM_USER | XT_MEM_READ
-    );
 
     uint64_t moduleAslr = 0;
     xtGetRandomU64(&moduleAslr);
     moduleAslr = (0x00007f0000000000) + ((moduleAslr & ((1ull << 26) - 1)) << 12);
 
-    PIMAGE_DOS_HEADER dosHeader = userProgram;
-    PIMAGE_NT_HEADERS ntHeaders = (char*)userProgram + dosHeader->e_lfanew;
-    void* physImage = 0;
-    XT_TRY(xtAllocatePages(NULL, ntHeaders->OptionalHeader.SizeOfImage, &physImage));
-    xtCopyMem(physImage, userProgram, ntHeaders->OptionalHeader.SizeOfHeaders);
+    PFNXTMAIN main = NULL;
 
-    PIMAGE_SECTION_HEADER sections = (char*)ntHeaders + IMAGE_SIZEOF_NT_OPTIONAL64_HEADER + IMAGE_SIZEOF_FILE_HEADER + 4;
-    for (uint64_t i = 0; i < ntHeaders->FileHeader.NumberOfSections; ++i) {
-        xtCopyMem(physImage + sections[i].VirtualAddress, 
-            (char*)userProgram + sections[i].PointerToRawData, sections[i].SizeOfRawData);
-        
-        uint64_t attr = XT_MEM_USER;
-        if (sections[i].Characteristics & IMAGE_SCN_MEM_EXECUTE) {
-            attr |= XT_MEM_EXEC;
-        }
-        if (sections[i].Characteristics & IMAGE_SCN_MEM_READ) {
-            attr |= XT_MEM_READ;
-        }
-        if (sections[i].Characteristics & IMAGE_SCN_MEM_WRITE) {
-            attr |= XT_MEM_WRITE;
-        }
-        xtSetPages(newPageTable, 
-            moduleAslr + sections[i].VirtualAddress, 
-            physImage + sections[i].VirtualAddress, (sections[i].SizeOfRawData+0xfff) & (~(0xfff)), attr);
-        
-        void* dummy = NULL;
-
-        xtInsertVirtualMap(
-            result,
-            moduleAslr + sections[i].VirtualAddress,
-            physImage + sections[i].VirtualAddress,
-            (sections[i].SizeOfRawData+0xfff) & (~(0xfff)),
-            attr | XT_MEM_RESERVED
-        );
-
-    }
+    XT_TRY(xtLoadModule(
+        result,
+        "/initrd/xtinit.xte",
+        moduleAslr,
+        XT_MEM_USER,
+        &main
+    ));
 
     XTThread* thread = NULL;
 
     XT_TRY(xtCreateThread(
         result,
-        (PFNXTTHREADFUNC)(moduleAslr + ntHeaders->OptionalHeader.AddressOfEntryPoint),
+        (PFNXTTHREADFUNC)(main),
         0,
         NULL,
         XT_THREAD_USER | XT_THREAD_RUN_STATE,
         &thread
     ));
-
+    
     return XT_SUCCESS;
 
 }
@@ -243,29 +207,18 @@ XTResult xtCreateThread(
         physStackTop = (char*)kernelStack + 0x4000;
     }
     stack_top -= 40;
-    physStackTop -= 40;
-    uint64_t* ret = (uint64_t*)physStackTop;
-    uint64_t userExitPtr = 0;
-    xtGetPhysicalAddress(kernelPageTable, xtUserExit, &userExitPtr);
-    userExitPtr = (USER_SIZE_MAX) + ((uint64_t)userExitPtr & 0xfff);
-    *ret = userExitPtr;
-
-    XTContext* ctx = (XTContext*)((char*)kernelStack + 0x4000 - sizeof(XTContext));
-
-    // Инициализируем "сохраненное" состояние
-    ctx->rip = ThreadFunc;                    // Прерывания разрешены (IF=1)
-    ctx->rflags = 0x202;
-    ctx->rcx = arg;
-    if (state & XT_THREAD_USER) {
-        ctx->cs = 0x1b;
-        ctx->ss = 0x23;
-    }
-    else {
-        ctx->cs = 0x08;
-        ctx->ss = 0x10;
-    }
-    ctx->rsp = stack_top;
-
+    physStackTop -= 40; 
+    void* ctx = NULL;
+    xtSetContext(
+        process, 
+        kernelStack,
+        ThreadFunc,
+        arg,
+        physStackTop,
+        stack_top,
+        state,
+        &ctx
+    );
 
     XTThread* result = NULL;
 
@@ -298,7 +251,7 @@ XTResult xtCreateThread(
     result->result = 0;
     result->state = state;
     result->privilage = 1;
-    result->ticks = 100;
+    result->ticks = 10;
     result->kernelStack = kernelStack+0x4000;
     XTList* threadList = NULL;
     XT_TRY(xtCreateList(result, &threadList));

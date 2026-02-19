@@ -27,6 +27,18 @@ typedef struct XTProcess {
     XTDescriptorTable* tables[8];
 } XTProcess;
 
+XTResult xtSetContext(
+    XTProcess* process, 
+    void* kernelStack,
+    uint64_t function, 
+    uint64_t arg,
+    uint64_t physStackTop,
+    uint64_t stackTop, 
+    uint64_t flags,
+    void** context
+);
+
+
 XTResult xtDuplicateHandle(
     XTProcess* process,
     uint64_t position,
@@ -41,7 +53,6 @@ XTResult xtGetHandle(
     XTDescriptor** out
 );
 
-XTResult xtCreateContext(void* kernelStack, uint64_t state, uint64_t func, uint64_t arg, uint64_t stack);
 
 XTResult xtCreateVirtualMapEntry(
     void* virtualStart,

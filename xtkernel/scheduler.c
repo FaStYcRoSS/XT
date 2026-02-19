@@ -1,7 +1,7 @@
 #include <xt/scheduler.h>
 #include <xt/kernel.h>
 #include <xt/memory.h>
-#include <xt/ringQueue.h>
+#include <xt/queue.h>
 #include <xt/list.h>
 #include <xt/random.h>
 
