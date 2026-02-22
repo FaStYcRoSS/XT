@@ -22,9 +22,9 @@
 
 -   [x] **Bootloader:** Completed and functional.
     
--   [ ] **Kernel Memory Manager:** Currently in development.
+-   [x] **Kernel Memory Manager:** Currently in development.
     
--   [ ] **Scheduler:** Refinement for multi-core multitasking.
+-   [x] **Scheduler:** Refinement for multi-core multitasking.
     
 -   [ ] **Multi-architecture Support:** Porting to other 64-bit platforms.
     
