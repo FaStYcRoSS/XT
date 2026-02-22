@@ -11,5 +11,6 @@ XTResult xtStringICmp(const char* left, const char* right, uint64_t max);
 XTResult xtDuplicateString(const char* str, const char** out);
 XTResult xtGetStringLength(const char* str, uint64_t* len);
 XTResult xtCopyString(char* dst, const char* src, uint64_t max);
+XTResult xtCompareMemory(const void* left, const void* right, uint64_t len);
 
 #endif

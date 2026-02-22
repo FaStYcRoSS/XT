@@ -5,6 +5,8 @@
 #include <xt/memory.h>
 #include <xt/scheduler.h>
 #include <xt/io.h>
+#include <xt/acpi.h>
+#include <xt/linker.h>
 
 #if defined(__x86_64__)
 #include <xt/arch/x86_64.h>
@@ -44,6 +46,8 @@ void xtKernelMain(KernelBootInfo* bootInfo) {
     
     XT_ASSERT(xtRamDiskInit());
 
+    XT_ASSERT(xtACPIInit());
+
     uint32_t* framebuffer = bootInfo->framebuffer;
 
     void* vdso = NULL;
@@ -57,19 +61,26 @@ void xtKernelMain(KernelBootInfo* bootInfo) {
         XT_MEM_EXEC | XT_MEM_READ | XT_MEM_USER
     );
 
-    XTFile* xtinit = NULL;
-    uint64_t size = 0;
-    void* initbase = 0;
-    XT_ASSERT(xtOpenFile("/initrd/xtinit.xte", XT_FILE_MODE_READ, &xtinit));
-    XT_ASSERT(xtMapFile(xtinit, 0, &size, &initbase));
-    userProgram = initbase;
-
-
+    XTProcess* process = NULL;
     XT_ASSERT(xtCreateProcess(
         NULL,
         0,
-        NULL
+        &process
     ));
+
+    const char* args[] = {
+        "/initrd/xtinit.xte",
+        NULL
+    };
+
+    XT_ASSERT(
+        xtExecuteProgram(
+            process,
+            args,
+            NULL
+        );
+    );
+
 
     xtSwitchTo();
 

@@ -14,4 +14,10 @@ XTResult xtLoadModule(
     PFNXTMAIN* out
 );
 
+XTResult xtExecuteProgram(
+    XTProcess* process,
+    const char** args,
+    const char** evnp
+);
+
 #endif

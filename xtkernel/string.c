@@ -2,26 +2,43 @@
 #include <xt/memory.h>
 #include <xt/string.h>
 
-XTResult xtStringCmp(const char* left, const char* right, uint64_t max) {
+// Вспомогательная функция (лучше использовать символы, а не магические числа)
+int tolower(int _ch) {
+    if (_ch >= 'A' && _ch <= 'Z') return _ch + ('a' - 'A');
+    return _ch;
+}
 
-    for (uint64_t i = 0;*left && *right && i < max;++left,++right, ++i) {
-        if ((*left - *right) != 0) return XT_NOT_EQUAL;
+// Безопасное сравнение памяти
+XTResult xtCompareMemory(const void* left, const void* right, uint64_t len) {
+    const uint8_t* l = (const uint8_t*)left;
+    const uint8_t* r = (const uint8_t*)right;
+
+    for (uint64_t i = 0; i < len; ++i) {
+        if (l[i] != r[i]) return XT_NOT_EQUAL;
     }
-    if (*left || *right) return XT_NOT_EQUAL;
     return XT_SUCCESS;
 }
 
-int tolower(int _ch) {
-    if (_ch >= 65 && _ch <= 90) return _ch + 32;
-    return _ch;
+// Сравнение строк (аналог strncmp, но возвращает XTResult)
+XTResult xtStringCmp(const char* left, const char* right, uint64_t max) {
+    if (max == 0) return XT_SUCCESS;
 
+    for (uint64_t i = 0; i < max; ++i) {
+        if (left[i] != right[i]) return XT_NOT_EQUAL;
+        if (left[i] == '\0') return XT_SUCCESS; // Строки закончились одновременно
+    }
+    return XT_SUCCESS;
 }
 
+// Регистронезависимое сравнение строк
 XTResult xtStringICmp(const char* left, const char* right, uint64_t max) {
-    for (uint64_t i = 0;*left && *right && i < max;++left,++right, ++i) {
-        if ((tolower(*left) - tolower(*right)) != 0) return XT_NOT_EQUAL;
+    if (max == 0) return XT_SUCCESS;
+
+    for (uint64_t i = 0; i < max; ++i) {
+        if (tolower((unsigned char)left[i]) != tolower((unsigned char)right[i])) 
+            return XT_NOT_EQUAL;
+        if (left[i] == '\0') return XT_SUCCESS;
     }
-    if (*left || *right) return XT_NOT_EQUAL;
     return XT_SUCCESS;
 }
 

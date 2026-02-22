@@ -86,6 +86,8 @@ XTResult xtCreateProcess(
     XTProcess** out
 ) {
 
+    XT_CHECK_ARG_IS_NULL(out);
+
     XTProcess* result = NULL;
     XT_TRY(xtHeapAlloc(sizeof(XTProcess), &result));
 
@@ -95,31 +97,8 @@ XTResult xtCreateProcess(
     xtCopyMem((char*)newPageTable + 0x7f8, (char*)kernelPageTable + 0x7f8, 0x808);
     
     result->pageTable = newPageTable;
-
-    uint64_t moduleAslr = 0;
-    xtGetRandomU64(&moduleAslr);
-    moduleAslr = (0x00007f0000000000) + ((moduleAslr & ((1ull << 26) - 1)) << 12);
-
-    PFNXTMAIN main = NULL;
-
-    XT_TRY(xtLoadModule(
-        result,
-        "/initrd/xtinit.xte",
-        moduleAslr,
-        XT_MEM_USER,
-        &main
-    ));
-
-    XTThread* thread = NULL;
-
-    XT_TRY(xtCreateThread(
-        result,
-        (PFNXTTHREADFUNC)(main),
-        0,
-        NULL,
-        XT_THREAD_USER | XT_THREAD_RUN_STATE,
-        &thread
-    ));
+    result->parentProcess = parentProcess;
+    *out = result;
     
     return XT_SUCCESS;
 

@@ -31,7 +31,7 @@ run: ./build/xtos.img
 	echo $(CURDIR)
 	qemu-system-x86_64 \
 	-D logs/log.txt -d in_asm,int -monitor stdio \
-	-bios ./build/ovmf-code-x86_64.fd \
+	-bios ./build/bios64.fd \
 	-usb \
 	-no-reboot -no-shutdown \
 	-drive format=raw,unit=0,file=./build/xtos.img \
