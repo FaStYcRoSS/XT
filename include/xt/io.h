@@ -33,11 +33,11 @@ typedef struct XTFileBuffer {
     PFNXTREADBUFFER  ReadBuffer;
 } XTFileBuffer;
 
-typedef XTResult(*PFNXTWRITEFILE)(XTFile* file, const void* data, uint64_t* written);
-typedef XTResult(*PFNXTREADFILE)(XTFile* file, void* data, uint64_t* read);
+typedef XTResult(*PFNXTWRITEFILE)(XTFile* file, const void* data, uint64_t offset, uint64_t count, uint64_t* written);
+typedef XTResult(*PFNXTREADFILE)(XTFile* file, void* data, uint64_t offset, uint64_t count, uint64_t* read);
 typedef XTResult(*PFNXTDEVICEIOCTL)(XTFile* file, uint64_t code, void* data);
-typedef XTResult(*PFNXTMAPFILE)(XTFile* file, uint64_t offset, uint64_t size, void** out);
-typedef XTResult(*PFNXTUNMAPFILE)(XTFile* file, void* ptr, uint64_t size);
+typedef XTResult(*PFNXTMAPFILE)(XTFile* file, uint64_t offset, uint64_t* size, void** out);
+typedef XTResult(*PFNXTUNMAPFILE)(XTFile* file, uint64_t offset, void* ptr, uint64_t size);
 typedef XTResult(*PFNXTOPENDIRECTORY)(XTMountPoint* mp, const char* name, XTDirectory** out);
 typedef XTResult(*PFNXTREADDIRECTORY)(XTDirectory* dir, XTFileInfo* fileInfo);
 typedef XTResult(*PFNXTOPENFILE)(XTMountPoint* mp, const char* name, uint64_t flags, XTFile** out);
@@ -78,17 +78,47 @@ typedef struct XTMountPoint {
 struct XTFile {
     XTMountPoint* mountPoint;
     XTFileIO* IO;
-    uint64_t seek;
     XTFileBuffer* buffer;
     void* data;
 };
 
-XTResult xtWriteFile(XTFile* file, const void* data, uint64_t* written);
-XTResult xtReadFile(XTFile* file, void* data, uint64_t* read);
+typedef struct XTFileDescriptor {
+    XTFile* file;
+    uint64_t seek;
+} XTFileDescriptor;
+
+typedef struct XTDescriptor {
+    void* desc;
+    uint32_t type;
+    uint32_t access;
+} XTDescriptor;
+
+#define XT_DESCRIPTOR_TYPE_UNDEFINED 0
+#define XT_DESCRIPTOR_TYPE_PROCESS   1
+#define XT_DESCRIPTOR_TYPE_FILE      2
+#define XT_DESCRIPTOR_TYPE_DIRECTORY 3
+#define XT_DESCRIPTOR_TYPE_THREAD    4
+
+typedef struct XTDescriptorTable {
+    XTDescriptor* descs[512];
+} XTDescriptorTable;
+
+#define XT_FILE_MODE_READ           0x01
+#define XT_FILE_MODE_WRITE          0x02
+#define XT_FILE_MODE_SHARE          0x04
+#define XT_FILE_MODE_CREATE         0x08
+#define XT_FILE_ATTRIBUTE_DIRECTORY 0x10
+
+
+XTResult xtWriteFile(XTFile* file, const void* data, uint64_t offset, uint64_t size, uint64_t* written);
+XTResult xtReadFile(XTFile* file, void* data, uint64_t offset, uint64_t size, uint64_t* read);
 XTResult xtOpenFile(const char* path, uint64_t flags, XTFile** out);
 XTResult xtCloseFile(XTFile* file);
 XTResult xtMount(const char* path, const char* filesystem, XTFile* dev);
 XTResult xtUnmount(const char* path);
+
+XTResult xtMapFile(XTFile* file, uint64_t offset, uint64_t* size, void** out);
+XTResult xtUnmapFile(XTFile* file, uint64_t offset, void* ptr, uint64_t size);
 
 XTResult xtWriteToBuffer(XTFile* file, const void* data, uint64_t* written);
 

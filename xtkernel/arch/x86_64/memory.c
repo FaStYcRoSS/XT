@@ -41,7 +41,7 @@ XTResult xtGetPageTable(void* pageTable, uint64_t index, void** out) {
 
     PageTable* _pageTable = (PageTable*)pageTable;
     uint64_t e = _pageTable->entries[index];
-    *out = e & ADDR_MASK;
+    *out = HIGHER_HALF_MEM(e & ADDR_MASK);
 
 
     return XT_SUCCESS;
@@ -52,17 +52,17 @@ XTResult xtGetOrMakePageTable(void* pageTable, uint64_t index, void** out, uint6
     XT_CHECK_ARG_IS_NULL(pageTable);
     XT_CHECK_ARG_IS_NULL(out);
 
-    PageTable* _pageTable = (PageTable*)pageTable;
+    PageTable* _pageTable = HIGHER_HALF_MEM((PageTable*)pageTable);
     uint64_t e = _pageTable->entries[index];
     if (!(e & P_PRESENT) || (e & P_PS)) {
         void* NewPage = NULL;
         XT_TRY(xtAllocatePages(NULL, 0x1000, &NewPage));
         //xtDebugPrint("NewPage 0x%llx\n", NewPage);
         _pageTable->entries[index] = ((uint64_t)NewPage) | (e & PTE_FLAGS_MASK) | flags;
-        *out = NewPage;
+        *out = HIGHER_HALF_MEM(NewPage);
         return XT_SUCCESS;
     }
-    *out = e & ADDR_MASK;
+    *out = HIGHER_HALF_MEM((e & ADDR_MASK));
     return XT_SUCCESS;
     
 }
@@ -72,7 +72,7 @@ XTResult xtGetPhysicalAddress(void* pageTable, void* virtualAddress, void** out)
     XT_CHECK_ARG_IS_NULL(out);
 
 
-    PageTable* _pageTable = (PageTable*)pageTable;
+    PageTable* _pageTable = HIGHER_HALF_MEM((PageTable*)pageTable);
     
     uint64_t va64 = virtualAddress;
     uint64_t PML4I = (va64 >> 39) & 0x1ff;
@@ -81,24 +81,24 @@ XTResult xtGetPhysicalAddress(void* pageTable, void* virtualAddress, void** out)
     uint64_t PTI = (va64 >> 12) & 0x1ff;
     uint64_t pdpte = _pageTable->entries[PML4I];
     if (!(pdpte & P_PRESENT)) return XT_NOT_FOUND;
-    PageTable* pdpt = (PageTable*)(pdpte & ADDR_MASK);
+    PageTable* pdpt = (PageTable*)(HIGHER_HALF_MEM(pdpte & ADDR_MASK));
     uint64_t pdpe = pdpt->entries[PDPI];
     if (!(pdpe & P_PRESENT)) return XT_NOT_FOUND;
     if (pdpe & P_PS) {
-        *out = (void*)((pdpe & ADDR_MASK) | (va64 & (1ull << 30)));
+        *out = (void*)((pdpe & ADDR_MASK) | (va64 & ((1ull << 30) - 1)));
         return XT_SUCCESS;
     }
-    PageTable* pdp = (PageTable*)(pdpe & ADDR_MASK);
+    PageTable* pdp = (PageTable*)(HIGHER_HALF_MEM(pdpe & ADDR_MASK));
     uint64_t pde = pdp->entries[PDI];
     if (!(pde & P_PRESENT)) return XT_NOT_FOUND;
     if (pde & P_PS) {
-        *out = (void*)((pde & ADDR_MASK) | (va64 & (1ull << 21)));
+        *out = (void*)((pde & ADDR_MASK) | (va64 & ((1ull << 21) - 1)));
         return XT_SUCCESS;
     }
-    PageTable* pd = (PageTable*)(pde & ADDR_MASK);
+    PageTable* pd = (PageTable*)(HIGHER_HALF_MEM(pde & ADDR_MASK));
     uint64_t pte = pd->entries[PTI];
     if (!(pte & P_PRESENT)) return XT_NOT_FOUND;
-    *out = (void*)((pte & ADDR_MASK) | (va64 & (1ull << 12)));
+    *out = (void*)((pte & ADDR_MASK) | (va64 & ((1ull << 12) - 1)));
     return XT_SUCCESS;
     
 

@@ -205,6 +205,7 @@ EFI_STATUS EFIAPI UefiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* sysTable) {
     bootInfo->framebuffer = HIGHER_HALF_MEM(framebuffer);
     bootInfo->width = width;
     bootInfo->height = height;
+    bootInfo->initrdSize = fileInfo->FileSize;
 
     EfiAssert(gBS->ExitBootServices(ImageHandle, MapKey));
 

@@ -29,7 +29,7 @@ EFI_STATUS EfiPrint(CHAR16* str, ...);
 
 #define KERNEL_IMAGE_BASE 0xffffffff80000000
 #define HIGH_HALF 0xffff800000000000
-#define HIGHER_HALF_MEM(x) ((void*)((uint64_t)x+HIGH_HALF))
+#define HIGHER_HALF_MEM(x) ((void*)((uint64_t)x | (HIGH_HALF)))
 
 typedef struct KernelBootInfo {
     UINTN MemoryMapSize;
@@ -38,6 +38,7 @@ typedef struct KernelBootInfo {
     EFI_CONFIGURATION_TABLE* TablePtr;
     UINTN CountTables;
     void* initrd;
+    uint64_t initrdSize;
     void* framebuffer;
     int32_t width, height;
     EFI_MEMORY_DESCRIPTOR descs[1];
