@@ -1,12 +1,13 @@
 include ../config.mk
 
-all: ../root/EFI/XT/XTBOOT.EFI
+all: ../efipart/EFI/XT/XTBOOT.EFI
 
-SOURCES = $(wildcard *.c)
-ASM_SOURCES = $(wildcard *.asm)
-OBJS = $(patsubst %.c, ../obj/xtboot/%.o, $(SOURCES)) $(patsubst %.asm, ../obj/xtboot/%.o, $(ASM_SOURCES)) ../obj/external/printf.o 
+ASM_SOURCES = $(wildcard arch/$(ARCH)/*.asm)
+SOURCES = $(wildcard *.c) $(wildcard arch/$(ARCH)/*.c) 
+OBJS = $(patsubst %.c, ../obj/xtboot/%.o, $(SOURCES)) ../obj/external/printf.o \
+    $(patsubst %.asm, ../obj/xtboot/%.o, $(ASM_SOURCES))
 
-../root/EFI/XT/XTBOOT.EFI: $(OBJS)
+../efipart/EFI/XT/XTBOOT.EFI: $(OBJS)
 	$(CC) -g $^ \
     -Wall -Wextra -Wpedantic \
     -mno-red-zone -ffreestanding -O3 -nostdlib \

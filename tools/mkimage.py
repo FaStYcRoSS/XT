@@ -60,10 +60,10 @@ def create_os_image(image_name, boot_dir, home_dir, size_mb=1024):
     attach vdisk
     convert gpt
     create partition efi size=128
-    format quick fs=fat32 label="BOOT"
+    format quick fs=fat32 label="EFIPART"
     assign letter=Y
     create partition primary
-    format quick fs=fat32 label="HOME"
+    format quick fs=fat32 label="SYSPART"
     assign letter=Z
     """
 
@@ -107,4 +107,4 @@ def create_os_image(image_name, boot_dir, home_dir, size_mb=1024):
 
 if __name__ == "__main__":
     # Важно: Запускать от Администратора
-    create_os_image("xtos", "./root", "./home")
+    create_os_image("xtos", "./efipart", "./syspart")
