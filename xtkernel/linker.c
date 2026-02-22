@@ -104,7 +104,6 @@ XTResult xtLoadModule(
     }
 
     ApplyRelocations(HIGHER_MEM(physImage), virtualBase);
-    xtDebugPrint("out 0x%llx\n", (uint64_t)virtualBase + ntHeaders->OptionalHeader.AddressOfEntryPoint);
     *out = (uint64_t)virtualBase + ntHeaders->OptionalHeader.AddressOfEntryPoint;
     return XT_SUCCESS;
 }
@@ -168,22 +167,14 @@ XTResult xtExecuteProgram(
     );
 
     uint64_t userArgsva = moduleAslr;
-    xtDebugPrint("userArgva 0x%llx\n", userArgsva);
     xtGetRandomU64(&moduleAslr);
     moduleAslr = ((moduleAslr & ((1ull << 34) - 1)) << 12);
-    xtDebugPrint("moduleAslr 0x%llx\n", moduleAslr);
     void* userArgs = NULL;
     uint64_t userArgsSize = ((argc * 8) + ((1 << PAGE_SHIFT) - 1)) & (~((1 << PAGE_SHIFT) - 1));
     xtAllocatePages(
         NULL,
         userArgsSize,
         &userArgs
-    );
-    xtDebugPrint(
-        "moduleAslr 0x%llx userArgs 0x%llx userArgsSize 0x%llx\n", 
-        moduleAslr,
-        userArgs,
-        userArgsSize
     );
     xtSetPages(
         process->pageTable,
@@ -192,7 +183,6 @@ XTResult xtExecuteProgram(
         userArgsSize,
         XT_MEM_USER | XT_MEM_READ | XT_MEM_RESERVED
     );
-    xtDebugPrint("insertion 0x%llx\n", moduleAslr);
     result = xtInsertVirtualMap(
         process,
         moduleAslr,
@@ -204,10 +194,8 @@ XTResult xtExecuteProgram(
 
     strtab = HIGHER_MEM(strtab);
     userArgs = HIGHER_MEM(userArgs);
-    xtDebugPrint("before set mem\n", main);
     xtSetMem(strtab, 0, strtabsize);
     argc = 0;
-    xtDebugPrint("before copy\n", main);
     for (const char** i = args; *i; ++i, ++argc) {
         uint64_t strsize = 0;
         xtGetStringLength(*i, &strsize);
@@ -219,7 +207,6 @@ XTResult xtExecuteProgram(
     }
 
     XTThread* thread = NULL;
-    xtDebugPrint("main 0x%llx\n", main);
     XT_TRY(xtCreateThread(
         process,
         (PFNXTTHREADFUNC)(main),
