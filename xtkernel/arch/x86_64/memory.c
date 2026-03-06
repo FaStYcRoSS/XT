@@ -194,6 +194,7 @@ XTResult xtSetPages(
         va64 += page_size;
         pa64 += page_size;
         size -= page_size;
+        __asm__ volatile("invlpg (%0)" ::"r"(va64 - page_size) : "memory");
     }
 
     return XT_SUCCESS;

@@ -1,7 +1,12 @@
-#include <xt/scheduler.h>
+
+#include <xt/pe.h>
 #include <xt/memory.h>
-#include <xt/linker.h>
+#include <xt/arch/x86_64.h>
+#include <xt/io.h>
+#include <xt/scheduler.h>
+#include <xt/random.h>
 #include <xt/kernel.h>
+#include <xt/string.h>
 
 XTResult xtDuplicateHandle(
     XTProcess* process,
@@ -40,18 +45,8 @@ XTResult xtGetHandle(
 
 }
 
-#include <xt/pe.h>
-#include <xt/memory.h>
-#include <xt/arch/x86_64.h>
-#include <xt/io.h>
-#include <xt/scheduler.h>
-#include <xt/random.h>
-#include <xt/kernel.h>
-#include <xt/string.h>
 
 extern void* kernelPageTable;
-
-extern XTThread* currentThread;
 
 extern XTList* threads;
 extern XTList* currentThreadIterator;
@@ -60,9 +55,10 @@ extern uint64_t threadCount;
 
 XTResult xtTerminateThread(XTThread* thread, XTResult result) {
     XT_CHECK_ARG_IS_NULL(thread);
-    xtDebugPrint("delete thread 0x%x\n", thread->id);
     thread->result = result;
     thread->state = (thread->state & ~(0xf)) | XT_THREAD_TERMINATED_STATE;
+    XTThread* currentThread = NULL;
+    xtGetCurrentThread(&currentThread);
     if (thread == currentThread)
         xtSwitchToThread();
     return XT_SUCCESS;
@@ -72,12 +68,23 @@ extern void xtUserExit();
 
 XTResult xtGetCurrentThread(XTThread** out) {
     XT_CHECK_ARG_IS_NULL(out);
+    uint64_t currentThread = 0;
+    asm volatile("movq %%gs:0, %%rax":"=a"(currentThread));
     *out = currentThread;
+    return XT_SUCCESS;
 }
 
 XTResult xtGetCurrentProcess(XTProcess** out) {
     XT_CHECK_ARG_IS_NULL(out);
+    XTThread* currentThread = 0;
+    asm volatile("movq %%gs:0, %%rax":"=a"(currentThread));
     *out = currentThread->process;
+    return XT_SUCCESS;
+}
+
+XTResult xtSetCurrentThread(XTThread* thread) {
+    asm volatile("movq %%rax, %%gs:0"::"a"(thread));
+    return XT_SUCCESS;
 }
 
 XTResult xtCreateProcess(    
@@ -204,7 +211,7 @@ XTResult xtCreateThread(
     if (threads == NULL) {
         XT_TRY(xtHeapAlloc(sizeof(XTThread), &result));
         XT_TRY(xtCreateList(result, &threads));
-        currentThread = result;
+        xtSetCurrentThread(result);
         currentThreadIterator = threads;
         result->id = 0;
     }
@@ -242,7 +249,5 @@ XTResult xtCreateThread(
     }
 
     *out = result;
-    // Теперь нам нужна маленькая хитрость: xtThreadEntryWrapper должен 
-    // знать, что вызывать. Перепишем враппер в ASM или используем регистры.
     return XT_SUCCESS;
 }

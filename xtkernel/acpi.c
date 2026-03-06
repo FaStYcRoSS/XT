@@ -35,7 +35,6 @@ XTResult xtFindACPITable(const char* signature, void** out) {
 
     uint64_t entries = (xsdt->Header.Length - sizeof(DescriptionHeader)) / 8;
     for (uint64_t i = 0; i < entries; ++i) { // ОБЯЗАТЕЛЬНО инициализируем i = 0
-        xtDebugPrint("table[%u] 0x%llx\n", i, xsdt->Tables[i]);
         DescriptionHeader* descHeader = HIGHER_MEM(xsdt->Tables[i]);
         if (descHeader == HIGHER_MEM(0)) continue;
         if (xtStringCmp(descHeader->Signature, signature, 4) == XT_SUCCESS) {

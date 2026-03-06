@@ -1,9 +1,9 @@
 
 MODULES = xtboot bootstub xtkernel user libs drivers
 
-.PHONY: all $(MODULES) image clean run
+.PHONY: all $(MODULES) ./build/xtos.img clean run
 
-all: logs obj efipart syspart image initrd
+all: logs obj efipart syspart ./build/xtos.img initrd
 
 logs:
 	mkdir $@

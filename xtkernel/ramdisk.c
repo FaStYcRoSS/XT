@@ -65,10 +65,11 @@ XTResult tarMapFile(XTFile* file, uint64_t offset, uint64_t* size, void** out) {
 
 XTResult tarUnmapFile(XTFile* file, uint64_t offset, void* ptr, uint64_t size) {
     TarFileData* fileData = file->data;
+    XTFile* dev = file->mountPoint->device;
     if (size == 0) {
         size = fileData->fileSize;
     }
-    return xtUnmapFile(file, offset, ptr, size);
+    return xtUnmapFile(dev, offset, ptr, size);
 }
 
 XTFileIO fileIO = {
@@ -150,9 +151,14 @@ XTResult initrdMapFile(XTFile* file, uint64_t offset, uint64_t* size, void** out
     return XT_SUCCESS;
 }
 
+XTResult initrdUnmapFile(XTFile* file, uint64_t offset, uint64_t size, void* ptr) {
+    return XT_SUCCESS;
+}
+
 XTFileIO initrdIO = {
     .ReadFile = initrdReadFile,
-    .MapFile = initrdMapFile
+    .MapFile = initrdMapFile,
+    .UnmapFile = initrdUnmapFile
 };
 
 XTFile initrd = { 0 };

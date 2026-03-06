@@ -23,8 +23,6 @@ KernelBootInfo* gKernelBootInfo = NULL;
 
 #define KERNEL_IMAGE_BASE ((void*)(0xffffffff80000000))
 
-extern XTThread* currentThread;
-
 extern void xtSwitchTo();
 
 XTResult xtSchedulerInit();
@@ -80,7 +78,6 @@ void xtKernelMain(KernelBootInfo* bootInfo) {
             NULL
         );
     );
-
 
     xtSwitchTo();
 

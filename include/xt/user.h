@@ -11,7 +11,7 @@
 #define XT_STDOUT          ((uint64_t)1)
 #define XT_STDERR          ((uint64_t)2)
 
-typedef XTResult(*PFNXTMAIN)(const char** args);
+typedef XTResult(*PFNXTMAIN)(int argc, char** argv, char** envp);
 
 XTResult xtMain(const char** args);
 

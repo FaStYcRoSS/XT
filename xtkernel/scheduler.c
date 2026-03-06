@@ -5,8 +5,6 @@
 #include <xt/list.h>
 #include <xt/random.h>
 
-XTThread* currentThread = NULL;
-
 XTList* threads = NULL;
 XTList* currentThreadIterator = NULL;
 
@@ -59,7 +57,8 @@ XTThread* IdleThread = NULL;
 void xtSchedule() {
     // 1. Сначала будим все потоки, которые пора разбудить
     xtWakeUpThreads();
-
+    XTThread* currentThread = NULL;
+    xtGetCurrentThread(&currentThread);
     // 2. Уменьшаем квант времени текущего потока
     if ((currentThread->state & 0xf) == XT_THREAD_RUN_STATE) {
         currentThread->ticks -= 10;
@@ -87,13 +86,14 @@ void xtSchedule() {
         if (currentThreadIterator == startThreadIter) {
             // В идеале тут нужно переходить в Idle-поток (ожидание прерывания)
             // Но для начала просто выйдем
-            currentThread = IdleThread;
+            xtSetCurrentThread(IdleThread);
             break;
         }
     }
 
     // Сбрасываем квант времени для выбранного потока
     currentThread->ticks = currentThread->privilage * 100;
+    xtSetCurrentThread(currentThread);
 }
 
 void xtHalt();

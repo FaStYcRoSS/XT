@@ -6,7 +6,9 @@
 
 typedef struct XTSharedPtr XTSharedPtr;
 
-XTResult xtCreateSharedPtr(void* data, uint64_t size, XTSharedPtr** out);
+typedef XTResult(*PFNXTDELETEFUNC)(void* data);
+
+XTResult xtCreateSharedPtr(void* data, XTSharedPtr** out, PFNXTDELETEFUNC deleteFunc);
 XTResult xtSharedPtrGetData(XTSharedPtr* ptr, void** data);
 XTResult xtIncrementReference(XTSharedPtr* ptr);
 XTResult xtDecrementReference(XTSharedPtr* ptr);

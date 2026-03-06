@@ -22,9 +22,10 @@ typedef struct XTProcess {
     XTList* threads;
     void*   pageTable;
     struct XTProcess* parentProcess;
-    struct XTList* childs;
+    XTList* childProcess;
     XTList* memoryMap;
     XTDescriptorTable* tables[8];
+    XTList* modules;
 } XTProcess;
 
 XTResult xtSetContext(
@@ -89,6 +90,9 @@ typedef struct XTThread {
     void* kernelStack; //40
 } XTThread;
 
+typedef struct XTPerCPUData {
+    XTThread* currentThread;
+} XTPerCPUData;
 
 #define XT_THREAD_SLEEP_STATE      0
 #define XT_THREAD_RUN_STATE        1
@@ -119,6 +123,7 @@ XTResult xtSleepThread(
 
 XTResult xtGetCurrentThread(XTThread** out);
 XTResult xtGetCurrentProcess(XTProcess** out);
+XTResult xtSetCurrentThread(XTThread* thread);
 
 XTResult xtCreateProcess(
     XTProcess* parentProcess,

@@ -3,13 +3,13 @@ global xtSwitchToThread
 global xtSwitchTo
 global xtDivizionException
 global xtSyscallHandler
-extern currentThread
 extern xtExceptionHandler
 extern xtSyscallArray
 
 %macro isr_err_stub 1
 global isr_stub_%1
 isr_stub_%1:
+    swapgs
     push qword %1
     push r15
     push r14
@@ -29,8 +29,7 @@ isr_stub_%1:
 
     mov rax, cr2
     push rax
-
-    mov rax, [rel currentThread]
+    mov rax, [gs:0]
     mov [rax], rsp
     mov rcx, cr3
     mov rax, [rax+32]
@@ -40,7 +39,7 @@ isr_stub_%1:
     call xtExceptionHandler
     add rsp, 40
 
-    mov rax, [rel currentThread]
+    mov rax, [gs:0]
     mov rsp, [rax]
     mov rax, [rax+32]
     mov rax, [rax+0x8]
@@ -63,12 +62,14 @@ isr_stub_%1:
     pop r14
     pop r15
     add rsp, 16
+    swapgs
     iretq
 %endmacro
 ; if writing for 64-bit, use iretq instead
 %macro isr_no_err_stub 1
 isr_stub_%1:
 global isr_stub_%1
+    swapgs
     push qword 0
     push qword %1
     push r15
@@ -90,7 +91,7 @@ global isr_stub_%1
     mov rax, cr2
     push rax
 
-    mov rax, [rel currentThread]
+    mov rax, [gs:0]
     mov [rax], rsp
     mov rcx, cr3
     mov rax, [rax+32]
@@ -100,7 +101,7 @@ global isr_stub_%1
     call xtExceptionHandler
     add rsp, 40
 
-    mov rax, [rel currentThread]
+    mov rax, [gs:0]
     mov rsp, [rax]
     mov rax, [rax+32]
     mov rax, [rax+0x8]
@@ -123,6 +124,7 @@ global isr_stub_%1
     pop r14
     pop r15
     add rsp, 16
+    swapgs
     iretq
 %endmacro
 
@@ -165,30 +167,35 @@ isr_no_err_stub 40
 
 xtSyscallHandler:
 
+    swapgs
+    mov r12, [gs:0]
+    mov r13, rsp
+    mov rsp, [r12+40]
     push rcx
     push r11
-    mov r11, rsp
-    mov rcx, [rel currentThread]
-    mov rsp, [rcx+40]
+    push r13
     mov rcx, r10
-    push r11
     lea r10, [rel xtSyscallArray]
     call [r10+rax*8]
-    pop r11
-    mov rsp, r11
+    pop r13
     pop r11
     pop rcx
+    xor r12, r12
+    mov rsp, r13
+    xor r13, r13
+    swapgs
     o64 sysret
 
 
 
 
 xtSwitchToThread:
+    swapgs
     int 0x20
     ret
 
 xtSwitchTo:
-    mov rax, [rel currentThread]
+    mov rax, [gs:0]
     mov rsp, [rax]
     mov rax, [rax+32]
     mov rax, [rax+0x8]
@@ -210,4 +217,5 @@ xtSwitchTo:
     pop r14
     pop r15
     add rsp, 16
+    swapgs
     iretq

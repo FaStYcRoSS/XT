@@ -15,7 +15,6 @@ XTResult xtUserWriteFile(
 
 XTResult xtUserTerminateThread(uint64_t handleId, uint64_t code) {
 
-    xtDebugPrint("xtUserTerminateThread!\n");
     XTThread* __currentThread = NULL;
     xtGetCurrentThread(&__currentThread);
 

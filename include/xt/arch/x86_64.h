@@ -32,5 +32,4 @@ typedef struct XTContext {
     uint64_t ss;
 } XTContext;
 
-
 #endif

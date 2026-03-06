@@ -30,7 +30,7 @@ XTResult xtSetContext(
     ctx->rflags = 0x202;
     ctx->rcx = arg;
     if (flags & XT_THREAD_USER) {
-        ctx->cs = 0x1b;
+        ctx->cs = 0x2b;
         ctx->ss = 0x23;
     }
     else {

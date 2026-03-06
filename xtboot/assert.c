@@ -48,6 +48,7 @@ EFI_STATUS EFIAPI _EfiAssert(CHAR16* lineno, CHAR16* file, CHAR16* expr, EFI_STA
     EfiOutputString(L":");
     EfiOutputString(str_Error[status & ~(EFI_ERROR_MASK)]);
     EfiOutputString(L"\n\r");
+    while(1);
     return EFI_SUCCESS;
 
 }

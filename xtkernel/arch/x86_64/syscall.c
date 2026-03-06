@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <xt/arch/x86_64.h>
 #include <xt/user.h>
+#include <xt/memory.h>
 
 #define EFER_NXE (1 << 11)
 
@@ -28,12 +29,18 @@ XTResult xtRdmsr(uint64_t code, uint64_t* value) {
     return XT_SUCCESS;
 }
 
+#define MSR_KERNEL_GS_BASE 0xc0000102
 
 XTResult xtSyscallInit() {
     uint64_t efer = 0;
     xtRdmsr(0xc0000080, &efer);
     xtWrmsr(0xc0000080, efer | 0x1 | EFER_NXE);
-    xtWrmsr(0xc0000081, ((0x10ull << 16 )| 0x08ull) << 32);
+    xtWrmsr(0xc0000081, ((0x18ull << 16 )| 0x08ull) << 32);
     xtWrmsr(0xc0000082, xtSyscallHandler);
+    XTPerCPUData* perCPU = NULL;
+    xtHeapAlloc(sizeof(XTPerCPUData), &perCPU);
+    xtWrmsr(MSR_KERNEL_GS_BASE, 0);
+    xtWrmsr(0xc0000100, 0);
+    xtWrmsr(0xc0000101, perCPU);
     return XT_SUCCESS;
 }

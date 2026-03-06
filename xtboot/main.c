@@ -142,7 +142,6 @@ EFI_STATUS EFIAPI UefiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* sysTable) {
     UINT32 DescRevision = 0;
 
     gBS->GetMemoryMap(&MemoryMapBuffSize, NULL, &MapKey, &DescSize, &DescRevision);
-    
     KernelBootInfo* bootInfo = NULL;
     EfiAssert(gBS->AllocatePool(EfiRuntimeServicesData, MemoryMapBuffSize+sizeof(KernelBootInfo), &bootInfo));
     EfiAssert(gBS->GetMemoryMap(&MemoryMapBuffSize, &bootInfo->descs[0], &MapKey, &DescSize, &DescRevision));

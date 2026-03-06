@@ -1,11 +1,14 @@
 include ../config.mk
 
-all: ../obj/xtkernel/arch/$(ARCH) ../efipart/XT/xtkernel.xte
+all: ../obj/xtkernel/arch/$(ARCH) ../efipart/XT ../efipart/XT/xtkernel.xte 
 
 ASM_SOURCES = $(wildcard arch/$(ARCH)/*.asm)
 SOURCES = $(wildcard *.c) $(wildcard arch/$(ARCH)/*.c) 
 OBJS = $(patsubst %.c, ../obj/xtkernel/%.o, $(SOURCES)) ../obj/external/printf.o \
     $(patsubst %.asm, ../obj/xtkernel/%.o, $(ASM_SOURCES))
+
+../efipart/XT:
+	mkdir ..\efipart\XT
 
 ../obj/xtkernel/arch/$(ARCH):
 	mkdir ..\obj\xtkernel\arch\$(ARCH)

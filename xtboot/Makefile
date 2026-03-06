@@ -1,11 +1,17 @@
 include ../config.mk
-
-all: ../efipart/EFI/XT/XTBOOT.EFI
+ 
+all: ../efipart/EFI/XT/XTBOOT.EFI ../efipart/EFI ../efipart/EFI/XT
 
 ASM_SOURCES = $(wildcard arch/$(ARCH)/*.asm)
 SOURCES = $(wildcard *.c) $(wildcard arch/$(ARCH)/*.c) 
 OBJS = $(patsubst %.c, ../obj/xtboot/%.o, $(SOURCES)) ../obj/external/printf.o \
     $(patsubst %.asm, ../obj/xtboot/%.o, $(ASM_SOURCES))
+
+../efipart/EFI:
+	mkdir ..\efipart\EFI
+
+../efipart/EFI/XT:
+	mkdir ..\efipart\EFI\XT
 
 ../efipart/EFI/XT/XTBOOT.EFI: $(OBJS)
 	$(CC) -g $^ \

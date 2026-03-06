@@ -125,6 +125,9 @@ XTResult xtOpenFile(const char* path, uint64_t flags, XTFile** out) {
 }
 
 XTResult xtCloseFile(XTFile* file) {
+    XT_CHECK_ARG_IS_NULL(file);
+    if (file->IO == NULL) return XT_NOT_IMPLEMENTED;
+    if (file->IO->CloseFile == NULL) return XT_NOT_IMPLEMENTED;
     return file->IO->CloseFile(file->mountPoint, file);
 }
 
