@@ -57,9 +57,11 @@ XTResult xtCopyString(char* dst, const char* src, uint64_t max) {
     XT_CHECK_ARG_IS_NULL(src);
     XT_CHECK_ARG_IS_NULL(dst);
     XT_CHECK_ARG_IS_NULL(src);
-    for(uint64_t i = 0; i < max && ((char*)src)[i]; ++i) {
+    uint64_t i = 0;
+    for(; i < max && ((char*)src)[i]; ++i) {
         ((char*)dst)[i] = ((char*)src)[i];
     }
+    ((char*)dst)[i] = '\0';
     return XT_SUCCESS;
 }
 
@@ -81,6 +83,7 @@ XTResult xtDuplicateString(const char* str, const char** out) {
     xtGetStringLength(str, &size);
     XT_TRY(xtHeapAlloc(size+1, &newStr));
     xtCopyMem(newStr, str, size+1);
+    newStr[size] = '\0';
     *out = newStr;
     return XT_SUCCESS;
 }

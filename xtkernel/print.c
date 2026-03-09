@@ -19,7 +19,13 @@ const char* results[] = {
     "OUT_OF_MEMORY",
     "OUT_OF_BOUNDARY",
     "NOT_FOUND",
-    "NOT_EQUAL"
+    "NOT_EQUAL",
+    "INVALID_INITIALIZATION",
+    "BAN_NAME",
+    "ACCESS_DENIED",
+    "END_OF_FILE",
+    "INVALID_MODULE",
+    "ARCH_EXCEPTION"
 };
 
 const char* xtResultToStr(XTResult result) {
@@ -27,7 +33,7 @@ const char* xtResultToStr(XTResult result) {
     return results[result];
 }
 
-int xtDebugPrint(const char* format, ...) {
+int __declspec(dllexport) xtDebugPrint(const char* format, ...) {
     char buff[4096];
 
     va_list va;

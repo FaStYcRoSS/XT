@@ -112,6 +112,7 @@ uint64_t xtBuildFlags(uint64_t attr) {
     return flags;
 }
 
+void* kernelPageTable = NULL;
 
 
 XTResult xtSetPages(

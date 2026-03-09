@@ -54,14 +54,17 @@ void xtRegDump();
 
 XTThread* IdleThread = NULL;
 
+uint64_t ticks = 0;
+
 void xtSchedule() {
     // 1. Сначала будим все потоки, которые пора разбудить
+    ++ticks;
     xtWakeUpThreads();
     XTThread* currentThread = NULL;
     xtGetCurrentThread(&currentThread);
     // 2. Уменьшаем квант времени текущего потока
     if ((currentThread->state & 0xf) == XT_THREAD_RUN_STATE) {
-        currentThread->ticks -= 10;
+        currentThread->ticks -= 1;
         // Если время потока еще не вышло и он не заснул сам, продолжаем выполнение
         if (currentThread->ticks > 0) return;
     }
@@ -86,13 +89,13 @@ void xtSchedule() {
         if (currentThreadIterator == startThreadIter) {
             // В идеале тут нужно переходить в Idle-поток (ожидание прерывания)
             // Но для начала просто выйдем
-            xtSetCurrentThread(IdleThread);
+            currentThread = IdleThread;
             break;
         }
     }
 
     // Сбрасываем квант времени для выбранного потока
-    currentThread->ticks = currentThread->privilage * 100;
+    currentThread->ticks = currentThread->privilage;
     xtSetCurrentThread(currentThread);
 }
 

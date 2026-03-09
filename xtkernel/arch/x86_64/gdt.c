@@ -3,6 +3,7 @@
 #include <xt/memory.h>
 #include <xt/scheduler.h>
 #include <xt/kernel.h>
+#include "../../../external/printf.h"
 
 // Стандартный дескриптор (8 байт)
 typedef struct {
@@ -111,8 +112,9 @@ void xtRegDump() {
         xtDebugPrint("% 6s=0x%016llx ", registers[i], ((uint64_t*)context)[i]);
         if (i % 4 == 0 && i != 0) xtDebugPrint("\n");
     }
-
+    xtDebugPrint("\n");
 }
+
 
 void xtSendEOI();
 
@@ -133,7 +135,6 @@ void xtPageFaultHandler() {
     XTContext* ctx = currentThread->context;
     uint64_t errorVM = ctx->cr2;
     XTVirtualMap* mapEntry = NULL;
-    xtDebugPrint("error page 0x%llx\n", errorVM);
 
     XTResult result = xtFindVirtualMap(
         currentProcess,
@@ -141,14 +142,13 @@ void xtPageFaultHandler() {
         &mapEntry,
         &prev
     );
-    if ((ctx->errorCode & 0x2) && !(mapEntry->attr & XT_MEM_WRITE)) {
-        xtDebugPrint("segfault\n");
-        while(1);
-    }
     if (result == XT_NOT_FOUND) {
-        xtDebugPrint("segfault\n");
-        while(1);
+        xtTerminateThread(currentThread, XT_ACCESS_DENIED);
     }
+    if ((ctx->errorCode & 0x2) && !(mapEntry->attr & XT_MEM_WRITE)) {
+        xtTerminateThread(currentThread, XT_ACCESS_DENIED);
+    }
+
     void* newPage = NULL;
     XT_TRY(xtAllocatePages(NULL, 0x1000, &newPage));
     errorVM = (errorVM) & (~(0xfff));
@@ -162,6 +162,41 @@ void xtPageFaultHandler() {
     xtInvalidatePage(errorVM);
 }
 
+const char* exceptionShortName[] = {
+    "Division Error",
+    "Debug",
+    "Non-maskable Interrupt",
+    "Breakpoint",
+    "Overflow",
+    "Bound range Exceed",
+    "Invalid opcode",
+    "Device not available",
+    "Double fault",
+    "Coprocessor error",
+    "Invalid TSS",
+    "Segment not present",
+    "Stack-segment fault",
+    "General protection fault",
+    "Page fault",
+    "Reserved",
+    "x87 exception",
+    "Alignment check",
+    "Machine check",
+    "SIMD float-point exception",
+    "Virtualization exception",
+    "Control protection exception",
+    "Reserved",
+    "Reserved",
+    "Reserved",
+    "Reserved",
+    "Reserved",
+    "Hypervisor injection exception",
+    "VMM communication exception",
+    "Security exception",
+    "Reserved"
+};
+//bit map of exceptions
+uint32_t exceptionHasError = 0x500227d00;
 void xtExceptionHandler() {
     XTThread* currentThread = NULL;
     xtGetCurrentThread(&currentThread);
@@ -170,6 +205,7 @@ void xtExceptionHandler() {
     if (ctx->interruptNumber == 0x20) {
         asm volatile("cli");
         xtSchedule();
+        xtGetCurrentThread(&currentThread);
         tss.rsp0 = currentThread->kernelStack;
         xtSendEOI();
         return;
@@ -179,11 +215,13 @@ void xtExceptionHandler() {
         return;
     }
     // Обработка других исключений, например #GP (13) или #DF (8)
-    xtDebugPrint("Unhandled Exception: %d ErrorCode: %x\n", 
-        ctx->interruptNumber,
-        ctx->errorCode // Если оно у тебя есть в структуре
-    );
-    xtHalt();
+    char buff[64];
+    int n = snprintf_(buff, 64, "%s", exceptionShortName[ctx->interruptNumber]);
+    if ((exceptionHasError >> ctx->interruptNumber) & 0x1) {
+        snprintf_(buff + n, 64 - n, ":Error 0x%llx", ctx->errorCode);
+    }
+    xtRegDump();
+    xtKernelPanic(buff, ctx->rip, XT_ARCH_EXCEPTION);
 }
 
 XTResult xtSetIRQ(uint8_t vector, PFNXTIRQFunc irqFunc, uint8_t ist) {

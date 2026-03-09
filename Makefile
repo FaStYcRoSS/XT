@@ -29,7 +29,7 @@ $(MODULES):
 
 run: ./build/xtos.img
 	qemu-system-x86_64 \
-	-D logs/log.txt -d in_asm,int -monitor stdio \
+	-D logs/log.txt -monitor stdio \
 	-bios ./build/bios64.fd \
 	-usb \
 	-no-reboot -no-shutdown \

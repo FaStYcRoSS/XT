@@ -27,9 +27,9 @@ typedef signed long long int XTResult;
 #define XT_INVALID_INITIALIZATION XT_ERROR(7)
 #define XT_BAN_NAME               XT_ERROR(8)
 #define XT_ACCESS_DENIED          XT_ERROR(9)
-#define XT_SEGMENTATION_FAULT     XT_ERROR(10)
-#define XT_END_OF_FILE            XT_ERROR(11)
-
+#define XT_END_OF_FILE            XT_ERROR(10)
+#define XT_INVALID_MODULE         XT_ERROR(11)
+#define XT_ARCH_EXCEPTION         XT_ERROR(12)
 
 #define XT_TRY(x) do {XTResult __result = x; if (XT_IS_ERROR(__result)) return __result;} while(0)
 

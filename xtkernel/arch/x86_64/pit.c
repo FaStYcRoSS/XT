@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 /* Частота PIT в Гц (10 мс = 100 Гц) */
-#define PIT_FREQUENCY_HZ 100
+#define PIT_FREQUENCY_HZ 1000
 
 /* Векторы прерываний для PIC */
 #define PIC1_OFFSET 0x20  // Master PIC map to int 32 (0x20)

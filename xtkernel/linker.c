@@ -38,7 +38,7 @@ XTResult ApplyRelocations(void* physImage, void* virtualImage, uint64_t preferre
 typedef struct XTModule {
     const char* filename;
     void* physicalImage;
-    void* virtualImage;
+    uint64_t flags;
 } XTModule; 
 
 typedef struct XTModuleInstance {
@@ -95,6 +95,27 @@ XTResult xtGetEntryPoint(void* physImage, void* virtualImage, PFNXTFunc* out) {
     return XT_SUCCESS;
 }
 
+XTResult xtFindModuleByPtr(
+    void* ptr,
+    const char** filename
+) {
+    for (XTList* i = modules; i; xtGetNextList(i, &i)) {
+        XTSharedPtr* sharedPtr = NULL;
+        xtGetListData(i, &sharedPtr);
+        XTModule* module = NULL;
+        xtSharedPtrGetData(sharedPtr, &module);
+        
+        PIMAGE_NT_HEADERS nt = 
+        (PIMAGE_NT_HEADERS)((uint8_t*)module->physicalImage + 
+        ((PIMAGE_DOS_HEADER)module->physicalImage)->e_lfanew);
+        if ((uint64_t)module->physicalImage < (uint64_t)ptr && (uint64_t)ptr < (uint64_t)module->physicalImage + nt->OptionalHeader.SizeOfImage) {
+            *filename = module->filename;
+            return XT_SUCCESS;
+        }
+    }
+    return XT_NOT_FOUND;
+}
+
 XTResult xtFreeModuleInternal(void* data) {
     if (!data) return XT_INVALID_PARAMETER;
 
@@ -108,7 +129,7 @@ XTResult xtFreeModuleInternal(void* data) {
 
     if (xtIsDllFile(mod->physicalImage)) {
         PFNXTLIBRARYMAIN libMain = NULL;
-        xtGetEntryPoint(mod->physicalImage, mod->virtualImage, &libMain);
+        xtGetEntryPoint(mod->physicalImage, mod->physicalImage, &libMain);
         XTResult result = libMain(XT_LIBRARY_DETACH);
         if (XT_IS_ERROR(result)) {
             return result;
@@ -187,27 +208,56 @@ XTResult xtGetOrLoadPhysicalModule(const char* filename, XTSharedPtr** outPtr) {
 }
 
 
+XTResult xtInsertKernelModule() {
 
+    XTModule* newMod = NULL; // Твоя структура XTModule
+    xtHeapAlloc(sizeof(XTModule), &newMod);
+    newMod->physicalImage = KERNEL_IMAGE_BASE;
+    newMod->flags = 0x4 | 0x2;
+    xtDuplicateString("xtkernel.xte", (char**)&newMod->filename);
+    XTSharedPtr* ptr = NULL;
+    XTResult res = xtCreateSharedPtr(newMod, &ptr, (PFNXTDELETEFUNC)xtFreeModuleInternal);
+    if (XT_IS_ERROR(res)) {
+        return res;
+    }
+    XTList* newList = NULL;
+    xtCreateList(ptr, &newList);
+    // Добавляем в глобальный список для кэширования
+    modules = newList;
+    return XT_SUCCESS;
+}
 
 XTResult xtGetProcAddress(void* physImage, void* virtualImage, const char* funcName, PFNXTFunc* func) {
-    PIMAGE_DOS_HEADER dosHeader = HIGHER_HALF_MEM(physImage);
-    PIMAGE_NT_HEADERS64 ntHeaders = dosHeader->e_lfanew + (uint8_t*)HIGHER_HALF_MEM(physImage);
-    PIMAGE_EXPORT_DIRECTORY exportDirectory = ntHeaders->OptionalHeader.DataDirectory[0x0].VirtualAddress + (uint8_t*)HIGHER_HALF_MEM(physImage);
-    for (uint64_t i = 0; i < exportDirectory->NumberOfFunctions; ++i) {
-        PIMAGE_EXPORT_ENTRY funcEntry = exportDirectory->AddressOfFunctions + (uint8_t*)HIGHER_HALF_MEM(physImage);
-        PIMAGE_EXPORT_ENTRY     nameEntry = exportDirectory->AddressOfNames + (uint8_t*)HIGHER_HALF_MEM(physImage);
-        uint64_t funcNameLen = 0;
-        xtGetStringLength(funcName, &funcNameLen);
-        if (xtCompareMemory(nameEntry[i].rvaBase + (const char*)HIGHER_HALF_MEM(physImage), funcName, funcNameLen) == 0) {
-            *func = funcEntry[i].rvaAddress + (const char*)virtualImage;
+    PIMAGE_DOS_HEADER dosHeader = (PIMAGE_DOS_HEADER)physImage;
+    PIMAGE_NT_HEADERS64 ntHeaders = (PIMAGE_NT_HEADERS64)((uint8_t*)physImage + dosHeader->e_lfanew);
+    DWORD exportRVA = ntHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
+    if (!exportRVA) return XT_NOT_FOUND;
+
+    PIMAGE_EXPORT_DIRECTORY exports = (PIMAGE_EXPORT_DIRECTORY)((uint8_t*)physImage + exportRVA);
+    DWORD* names = (DWORD*)((uint8_t*)physImage + exports->AddressOfNames);
+    WORD* ordinals = (WORD*)((uint8_t*)physImage + exports->AddressOfNameOrdinals);
+    DWORD* functions = (DWORD*)((uint8_t*)physImage + exports->AddressOfFunctions);
+
+    for (DWORD i = 0; i < exports->NumberOfNames; i++) {
+        const char* name = (const char*)((uint8_t*)physImage + names[i]);
+        if (xtStringCmp(name, funcName, 4096) == 0) {
+            DWORD funcRVA = functions[ordinals[i]];
+            *func = (PFNXTFunc)((uint8_t*)virtualImage + funcRVA);
             return XT_SUCCESS;
         }
     }
     return XT_NOT_FOUND;
 }
 
-XTResult xtLoadModuleEx(XTProcess* process, const char* filename, void** base, PFNXTFunc* main);
+XTResult xtLoadModuleEx(XTProcess* process, const char* filename, void** base);
 
+const char* suffixes[] = {
+    "/initrd/",
+    "/XT/drivers/",
+    "/XT/",
+    "./",
+    ""
+};
 
 XTResult xtLoadSubmodules(XTProcess* process, void* physImage, void* virtualImage) {
     PIMAGE_NT_HEADERS nt = (PIMAGE_NT_HEADERS)((uint8_t*)physImage + ((PIMAGE_DOS_HEADER)physImage)->e_lfanew);
@@ -219,9 +269,14 @@ XTResult xtLoadSubmodules(XTProcess* process, void* physImage, void* virtualImag
     while (importDesc->Name) {
         const char* dllName = (const char*)((uint8_t*)physImage + importDesc->Name);
         void* subModuleBase = NULL;
-        PFNXTFunc entryPoint = NULL;
         // Рекурсивная загрузка
-        xtLoadModuleEx(process, dllName, &subModuleBase, &entryPoint);
+        xtLoadModuleEx(process, dllName, &subModuleBase);
+
+        PIMAGE_NT_HEADERS nt = (PIMAGE_NT_HEADERS)(((PIMAGE_DOS_HEADER)subModuleBase)->e_lfanew + (uint8_t*)subModuleBase);
+
+        if (!(nt->FileHeader.Characteristics & IMAGE_FILE_DLL) && nt->OptionalHeader.Subsystem != 33) {
+            return XT_INVALID_MODULE;
+        }
 
         PIMAGE_THUNK_DATA64 thunk = (PIMAGE_THUNK_DATA64)((uint8_t*)physImage + importDesc->FirstThunk);
         PIMAGE_THUNK_DATA64 origThunk = (PIMAGE_THUNK_DATA64)((uint8_t*)physImage + importDesc->OriginalFirstThunk);
@@ -236,13 +291,13 @@ XTResult xtLoadSubmodules(XTProcess* process, void* physImage, void* virtualImag
             thunk++;
             origThunk++;
         }
-
-        PFNXTLIBRARYMAIN libMain = (PFNXTLIBRARYMAIN)entryPoint;
-        XTResult result = libMain(XT_LIBRARY_ATTACH);
         importDesc++;
     }
     return XT_SUCCESS;
 }
+
+
+void xtKernelMain(KernelBootInfo* bootInfo);
 
 XTResult xtLoadKernelSubmodules(void* physImage, void* virtualImage) {
     PIMAGE_NT_HEADERS nt = (PIMAGE_NT_HEADERS)((uint8_t*)physImage + ((PIMAGE_DOS_HEADER)physImage)->e_lfanew);
@@ -254,14 +309,26 @@ XTResult xtLoadKernelSubmodules(void* physImage, void* virtualImage) {
     while (importDesc->Name) {
         const char* dllName = (const char*)((uint8_t*)physImage + importDesc->Name);
         void* subModuleBase = NULL;
-        
-        // Рекурсивная загрузка
-        XTSharedPtr* subModuleShared = NULL;
-        xtGetOrLoadPhysicalModule(dllName, &subModuleShared);
-        XTModule* mod = NULL;
-        xtSharedPtrGetData(subModuleShared, &mod);
-        subModuleBase = mod->physicalImage;
+        PFNXTFunc entryPoint = NULL;
 
+        // Поиск по всем префиксам
+        XTResult result = XT_NOT_FOUND;
+        for (int i = 0; i < sizeof(suffixes)/sizeof(*suffixes); ++i) {
+            char tempPath[4096];
+            uint64_t sufLen = 0;
+            xtGetStringLength(suffixes[i], &sufLen);
+            xtCopyString(tempPath, suffixes[i], 4096);
+            xtCopyString(tempPath + sufLen, dllName, 4096 - sufLen);
+
+            result = xtLoadKernelModule(tempPath, &subModuleBase);
+            if (!XT_IS_ERROR(result)) break;
+        }
+
+        if (XT_IS_ERROR(result) || subModuleBase == NULL) {
+            return XT_NOT_FOUND;
+        }
+
+        // Заполняем IAT основного модуля
         PIMAGE_THUNK_DATA64 thunk = (PIMAGE_THUNK_DATA64)((uint8_t*)physImage + importDesc->FirstThunk);
         PIMAGE_THUNK_DATA64 origThunk = (PIMAGE_THUNK_DATA64)((uint8_t*)physImage + importDesc->OriginalFirstThunk);
 
@@ -275,15 +342,11 @@ XTResult xtLoadKernelSubmodules(void* physImage, void* virtualImage) {
             thunk++;
             origThunk++;
         }
-        PFNXTFunc entryPoint = NULL;
-        xtGetEntryPoint(subModuleBase, subModuleBase, &entryPoint);
-        PFNXTLIBRARYMAIN libMain = (PFNXTLIBRARYMAIN)entryPoint;
-        XTResult result = libMain(XT_LIBRARY_ATTACH);
+
         importDesc++;
     }
     return XT_SUCCESS;
 }
-
 
 XTResult xtMapModuleToProcess(XTProcess* process, XTSharedPtr* physPtr, void* virtualBase) {
     XTModule* mod = NULL;
@@ -317,14 +380,13 @@ XTResult xtMapModuleToProcess(XTProcess* process, XTSharedPtr* physPtr, void* vi
     return XT_SUCCESS;
 }
 
-XTResult xtLoadModuleEx(XTProcess* process, const char* filename, void** base, PFNXTFunc* f) {
+XTResult xtLoadModuleEx(XTProcess* process, const char* filename, void** base) {
     XTSharedPtr* physPtr = NULL;
     XT_TRY(xtGetOrLoadPhysicalModule(filename, &physPtr));
 
     XTModule* mod = NULL;
     xtSharedPtrGetData(physPtr, (void**)&mod);
 
-        
     uint64_t moduleAslr = 0;
     xtGetRandomU64(&moduleAslr);
     moduleAslr = (0x00007f0000000000) + ((moduleAslr & ((1ull << 26) - 1)) << 12);
@@ -343,25 +405,42 @@ XTResult xtLoadModuleEx(XTProcess* process, const char* filename, void** base, P
     ApplyRelocations(HIGHER_MEM(mod->physicalImage), virtualBase, nt->OptionalHeader.ImageBase);
 
     *base = virtualBase;
-    xtGetEntryPoint(HIGHER_MEM(mod->physicalImage), virtualBase, f);
     return XT_SUCCESS;
 }
 
-XTResult xtLoadKernelModule(const char* filename, PFNXTDRIVERMAIN* out) {
+XTResult __declspec(dllexport) xtLoadKernelModule(const char* filename, void** base) {
     XTSharedPtr* physPtr = NULL;
     XT_TRY(xtGetOrLoadPhysicalModule(filename, &physPtr));
 
     XTModule* mod = NULL;
     xtSharedPtrGetData(physPtr, (void**)&mod);
-    void* physBase = HIGHER_MEM(mod->physicalImage);
-
+    void* physBase = HIGHER_MEM(mod->physicalImage);  // виртуальный адрес в ядре
     PIMAGE_NT_HEADERS nt = (PIMAGE_NT_HEADERS)((uint8_t*)physBase + ((PIMAGE_DOS_HEADER)physBase)->e_lfanew);
-    xtLoadKernelSubmodules(HIGHER_MEM(mod->physicalImage), HIGHER_MEM(mod->physicalImage));
 
-    // Для ядра virtualBase == physicalBase (или в соответствии с твоим HIGHER_HALF_MEM)
-    ApplyRelocations(physBase, physBase, nt->OptionalHeader.ImageBase);
-    
-    *out = (PFNXTDRIVERMAIN)((uint8_t*)physBase + nt->OptionalHeader.AddressOfEntryPoint);
+    // Рекурсивно загружаем зависимости (они будут использовать тот же physBase для своих импортов)
+    XTResult subRes = xtLoadKernelSubmodules(physBase, physBase);
+    if (XT_IS_ERROR(subRes)) {
+        // В случае ошибки нужно уменьшить счётчик ссылок и, возможно, выгрузить частично загруженное
+        xtDecrementReference(physPtr);
+        return subRes;
+    }
+
+    // Применяем релокации к образу (модифицируем его в памяти)
+    // Если модуль уже использовался ранее, это испортит кэш. Лучше создавать приватную копию.
+    // Для простоты пока оставим так, но в реальном проекте нужно копировать.
+    if (!(mod->flags & 0x4)) {
+        ApplyRelocations(physBase, physBase, nt->OptionalHeader.ImageBase);
+        mod->flags |= 0x4;
+    }
+
+
+    PFNXTDRIVERMAIN main = (PFNXTDRIVERMAIN)((uint8_t*)physBase + nt->OptionalHeader.AddressOfEntryPoint);
+    xtDebugPrint("driver main 0x%llx\n", main);
+    if (!(mod->flags & 0x2) && (uint64_t)main > HIGH_MEM) {
+        main(XT_LIBRARY_ATTACH);
+        mod->flags |= 0x2;
+    }
+    *base = physBase;
     return XT_SUCCESS;
 }
 
@@ -439,10 +518,16 @@ XTResult xtExecuteProgram(
     PFNXTMAIN main = NULL;
 
     void* virtualBase = NULL;
-    result = xtLoadModuleEx(process, args[0], &virtualBase, &main);
+    result = xtLoadModuleEx(process, args[0], &virtualBase);
     if (XT_IS_ERROR(result)) {
         return result;
     }
+
+    void* physBase = NULL;
+    xtFindModule(args[0], &physBase);
+
+    xtGetEntryPoint(physBase, virtualBase, &main);
+
     void* vargs = NULL;
     result = xtPassArgs(
         process,

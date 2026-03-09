@@ -6,6 +6,27 @@ extern void* kernelPageTable;
 
 extern void xtUserExit();
 
+XTResult xtGetCurrentThread(XTThread** out) {
+    XT_CHECK_ARG_IS_NULL(out);
+    uint64_t currentThread = 0;
+    asm volatile("movq %%gs:0, %%rax":"=a"(currentThread));
+    *out = currentThread;
+    return XT_SUCCESS;
+}
+
+XTResult xtGetCurrentProcess(XTProcess** out) {
+    XT_CHECK_ARG_IS_NULL(out);
+    XTThread* currentThread = 0;
+    asm volatile("movq %%gs:0, %%rax":"=a"(currentThread));
+    *out = currentThread->process;
+    return XT_SUCCESS;
+}
+
+XTResult xtSetCurrentThread(XTThread* thread) {
+    asm volatile("movq %%rax, %%gs:0"::"a"(thread));
+    return XT_SUCCESS;
+}
+
 XTResult xtSetContext(
     XTProcess* process, 
     void* kernelStack,

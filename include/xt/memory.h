@@ -21,6 +21,8 @@ typedef struct XTHeap XTHeap;
 #define XT_MEM_WRITE  0x0800
 #define XT_MEM_EXEC   0x1000
 
+#define __XT_USER_PTR__
+
 XTResult xtHeapAlloc(uint64_t size, void** out);
 XTResult xtHeapFree(void* ptr);
 
@@ -34,6 +36,8 @@ XTResult xtUnsetPages(void* pageTable, void* virtual_address, uint64_t size);
 XTResult xtGetPhysicalAddress(void* pageTable, void* virtualAddress, void** out);
 
 XTResult xtMemoryDump();
+
+XTResult xtAccessPtr(void* __XT_USER_PTR__ virtualAddress);
 
 
 #endif

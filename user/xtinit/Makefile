@@ -1,10 +1,10 @@
 include ../../config.mk
 
-all: ../../obj/xtkernel/arch/$(ARCH) ../../initrd/xtinit.xte
+all: ../../obj/xtkernel/arch/$(ARCH) ../../initrd/xtinit.xte 
 
 
 SOURCES = $(wildcard *.c)
-OBJS = $(patsubst %.c, ../../obj/user/xtinit/%.o, $(SOURCES)) 
+OBJS = $(patsubst %.c, ../../obj/user/xtinit/%.o, $(SOURCES)) ../../obj/external/printf.o
 
 ../../obj/user/xtinit/arch/$(ARCH):
 	mkdir ..\..\obj\user\xtinit\arch\$(ARCH)

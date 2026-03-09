@@ -121,6 +121,11 @@ XTResult xtSleepThread(
     uint64_t milliseconds
 );
 
+XTResult xtSetThreadPriority(
+    XTThread* thread,
+    uint64_t priority
+);
+
 XTResult xtGetCurrentThread(XTThread** out);
 XTResult xtGetCurrentProcess(XTProcess** out);
 XTResult xtSetCurrentThread(XTThread* thread);

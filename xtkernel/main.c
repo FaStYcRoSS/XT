@@ -27,12 +27,13 @@ extern void xtSwitchTo();
 
 XTResult xtSchedulerInit();
 
-void* kernelPageTable = NULL;
 
 XTResult xtFileSystemInit();
 
+XTResult xtInsertKernelModule();
+
 void xtKernelMain(KernelBootInfo* bootInfo) {
-    asm volatile("mov %%cr3, %%rax":"=a"(kernelPageTable));
+
 
     gKernelBootInfo = bootInfo;
     xtSerialInit();
@@ -48,17 +49,6 @@ void xtKernelMain(KernelBootInfo* bootInfo) {
 
     uint32_t* framebuffer = bootInfo->framebuffer;
 
-    void* vdso = NULL;
-    XT_ASSERT(xtFindSection(KERNEL_IMAGE_BASE, ".vdso", &vdso));
-    XT_ASSERT(xtGetPhysicalAddress(kernelPageTable, vdso, &vdso));
-
-    xtSetPages(kernelPageTable, 
-        (void*)(0x00007ffffffff000),
-        vdso,
-        0x1000,
-        XT_MEM_EXEC | XT_MEM_READ | XT_MEM_USER
-    );
-
     XTProcess* process = NULL;
     XT_ASSERT(xtCreateProcess(
         NULL,
@@ -71,12 +61,20 @@ void xtKernelMain(KernelBootInfo* bootInfo) {
         NULL
     };
 
+    xtInsertKernelModule();
+    xtDebugPrint("Load user program\n");
     XT_ASSERT(
         xtExecuteProgram(
             process,
             args,
             NULL
         );
+    );
+    xtDebugPrint("Load kernel module\n");
+    void* base = NULL;
+    uint64_t flags = 0;
+    XT_ASSERT(
+        xtLoadKernelModule("/initrd/ahci.xtd", &base)
     );
 
     xtSwitchTo();

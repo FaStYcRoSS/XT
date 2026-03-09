@@ -85,7 +85,6 @@ XTResult xtFindVirtualMap(
     for (XTList* i = process->memoryMap, *prev = NULL; i; prev = i, xtGetNextList(i, &i)) {
         XTVirtualMap* map = NULL;
         xtGetListData(i, &map);
-        xtDebugPrint("map->virtualStart 0x%llx map->size 0x%llx\n", map->virtualStart, map->size);
         if (map->virtualStart <= ptr && map->virtualStart + map->size >= ptr) {
             *out = map;
             if (prevList) {

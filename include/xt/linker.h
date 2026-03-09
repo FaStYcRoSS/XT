@@ -13,17 +13,17 @@ typedef XTResult(*PFNXTLIBRARYMAIN)(int reason);
 #define XT_LIBRARY_ATTACH  1
 #define XT_LIBRARY_DETACH  2
 
-XTResult xtLoadUserModule(
-    XTProcess* process,
-    const char* filename, 
-    void* virtualBase, 
-    uint64_t flags,
-    PFNXTMAIN* out
-);
+#define XT_DRIVER_WAS_LOADED 0
+#define XT_DRIVER_WAS_INITED 1
+
+XTResult xtFindModuleByPtr(
+    void* ptr,
+    const char** filename
+);  
 
 XTResult xtLoadKernelModule(
     const char* filename,
-    PFNXTDRIVERMAIN* out
+    void** base
 );
 
 XTResult xtExecuteProgram(

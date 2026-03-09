@@ -15,13 +15,16 @@ OBJS = $(patsubst %.c, ../obj/xtkernel/%.o, $(SOURCES)) ../obj/external/printf.o
 
 ../efipart/XT/xtkernel.xte: $(OBJS)
 	$(CC) -g $^ \
-    -Wall -Wextra -Wpedantic \
+	-fvisibility=hidden \
+    -Wall -Wextra -Wpedantic -shared \
     -mno-red-zone -ffreestanding -O3 -nostdlib \
     -Wl,--subsystem,33 \
     -Wl,--major-subsystem-version,2 \
     -Wl,--minor-subsystem-version,0 \
     -Wl,--image-base,0xffffffff80000000 \
     -e xtKernelMain -o $@
+	pexports $@ > ../obj/xtkernel.def
+	dlltool -d ../obj/xtkernel.def -l ../obj/xtkernel.lib
 
 ../obj/xtkernel/%.o:%.asm
 	nasm -f win64 -o $@ $< -g

@@ -9,7 +9,10 @@ extern xtSyscallArray
 %macro isr_err_stub 1
 global isr_stub_%1
 isr_stub_%1:
+    cmp word [rsp + 16], 0x2b
+    jne .no_swapgs_in
     swapgs
+.no_swapgs_in:
     push qword %1
     push r15
     push r14
@@ -26,7 +29,6 @@ isr_stub_%1:
     push rcx
     push rbx
     push rax
-
     mov rax, cr2
     push rax
     mov rax, [gs:0]
@@ -44,7 +46,7 @@ isr_stub_%1:
     mov rax, [rax+32]
     mov rax, [rax+0x8]
     mov cr3, rax
-
+    mov ax, cs
     pop rax
     pop rax
     pop rbx
@@ -62,15 +64,22 @@ isr_stub_%1:
     pop r14
     pop r15
     add rsp, 16
+    cmp word [rsp + 8], 0x2b
+    jne .no_swapgs_out
     swapgs
+.no_swapgs_out:
     iretq
 %endmacro
 ; if writing for 64-bit, use iretq instead
 %macro isr_no_err_stub 1
 isr_stub_%1:
 global isr_stub_%1
-    swapgs
     push qword 0
+    cmp word [rsp + 16], 0x2b
+    jne .no_swapgs_in
+    swapgs
+.no_swapgs_in:
+
     push qword %1
     push r15
     push r14
@@ -90,7 +99,6 @@ global isr_stub_%1
 
     mov rax, cr2
     push rax
-
     mov rax, [gs:0]
     mov [rax], rsp
     mov rcx, cr3
@@ -124,7 +132,10 @@ global isr_stub_%1
     pop r14
     pop r15
     add rsp, 16
+    cmp word [rsp + 8], 0x2b
+    jne .no_swapgs_out
     swapgs
+.no_swapgs_out:
     iretq
 %endmacro
 
@@ -190,7 +201,6 @@ xtSyscallHandler:
 
 
 xtSwitchToThread:
-    swapgs
     int 0x20
     ret
 
@@ -217,5 +227,8 @@ xtSwitchTo:
     pop r14
     pop r15
     add rsp, 16
+    cmp word [rsp + 8], 0x2b
+    jne .no_swapgs_out
     swapgs
+.no_swapgs_out:
     iretq
