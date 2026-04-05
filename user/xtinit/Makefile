@@ -4,7 +4,9 @@ all: ../../obj/xtkernel/arch/$(ARCH) ../../initrd/xtinit.xte
 
 
 SOURCES = $(wildcard *.c)
-OBJS = $(patsubst %.c, ../../obj/user/xtinit/%.o, $(SOURCES)) ../../obj/external/printf.o
+ASM_SOURCES = $(wildcard *.asm)
+OBJS = $(patsubst %.c, ../../obj/user/xtinit/%.o, $(SOURCES)) ../../obj/external/printf.o \
+		$(patsubst %.asm, ../../obj/user/xtinit/%.o, $(ASM_SOURCES))
 
 ../../obj/user/xtinit/arch/$(ARCH):
 	mkdir ..\..\obj\user\xtinit\arch\$(ARCH)
@@ -17,8 +19,6 @@ OBJS = $(patsubst %.c, ../../obj/user/xtinit/%.o, $(SOURCES)) ../../obj/external
     -Wall -Wextra -Wpedantic \
     -mno-red-zone -ffreestanding -nostdlib \
     -Wl,--subsystem,32 \
-    -Wl,--major-subsystem-version,2 \
-    -Wl,--minor-subsystem-version,0 \
     -e xtMain -o $@
 
 ../../obj/user/xtinit/%.o:%.asm

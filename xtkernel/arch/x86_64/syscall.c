@@ -32,6 +32,7 @@ XTResult xtRdmsr(uint64_t code, uint64_t* value) {
 #define MSR_EFER           0xc0000080
 #define MSR_STAR           0xc0000081
 #define MSR_LSTAR          0xc0000082
+#define MSR_FMASK          0xC0000084
 #define MSR_FS_BASE        0xc0000100
 #define MSR_GS_BASE        0xc0000101
 #define MSR_KERNEL_GS_BASE 0xc0000102
@@ -47,5 +48,6 @@ XTResult xtSyscallInit() {
     xtWrmsr(MSR_KERNEL_GS_BASE, NULL);
     xtWrmsr(MSR_FS_BASE, 0);
     xtWrmsr(MSR_GS_BASE, perCPU);
+    xtWrmsr(MSR_FMASK, 0x200);
     return XT_SUCCESS;
 }

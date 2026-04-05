@@ -4,14 +4,12 @@
 #include <xt/kernel.h>
 #include <xt/string.h>
 
-XTResult xtWriteFile(XTFile* file, const void* data, uint64_t offset, uint64_t size, uint64_t* written) {
+XTResult XTEXPORT xtWriteFile(XTFile* file, const void* data, uint64_t offset, uint64_t size, uint64_t* written) {
     XT_CHECK_ARG_IS_NULL(file);
     XT_CHECK_ARG_IS_NULL(data);
 
     if (file->IO == NULL) return XT_NOT_IMPLEMENTED;
-
     if (file->IO->WriteFile == NULL) return XT_NOT_IMPLEMENTED;
-    
     uint64_t tempWritten = 0;
     if (written == NULL) {
         written = &tempWritten;
@@ -21,17 +19,36 @@ XTResult xtWriteFile(XTFile* file, const void* data, uint64_t offset, uint64_t s
 
 }
 
-typedef struct XTPathNode {
-    XTMountPoint* mp;
-    const char* name;
-    XTList*     nodes;
-} XTPathNode;
+XTResult XTEXPORT xtGetFileInfo(XTFile* file, XTFileInfo* info) {
+    XT_CHECK_ARG_IS_NULL(file);
+    XT_CHECK_ARG_IS_NULL(info);
+
+    if (file->IO == NULL) return XT_NOT_IMPLEMENTED;
+    if (file->IO->GetFileInfo == NULL) return XT_NOT_IMPLEMENTED;
+    return file->IO->GetFileInfo(file, info);
+}
+
+
+
+XTResult XTEXPORT xtReadDirectory(XTDirectory* dir, XTFileInfo* info) {
+    XTList* l = NULL;
+    XTResult result = xtIndexList(dir->node->nodes, dir->pos, &l);
+    if (result == XT_OUT_OF_BOUNDARY) {
+        return dir->node->mp->fs->IO->ReadDirectory(dir, info);
+    }
+    XTPathNode* lNode = NULL;
+    xtGetListData(l, &lNode);
+    xtCopyString(info->name, lNode->name, 256);
+    ++dir->pos;
+    return XT_SUCCESS;
+}
+
 
 XTPathNode* root = NULL;
 
 XTList* filesystems = NULL;
 
-XTResult xtRegisterFileSystem(XTFileSystem* fs) {
+XTResult XTEXPORT xtRegisterFileSystem(XTFileSystem* fs) {
 
     XTList* fsList = NULL;
     XT_TRY(xtCreateList(fs, &fsList));
@@ -74,7 +91,6 @@ XTResult xtFindPathNode(const char* path, XTPathNode** node, char** left) {
         *left = prevPath;
         break;
     }
-    if (*path == '\0') *left = NULL;
     *node = pathi;
     return XT_SUCCESS;
 
@@ -103,28 +119,67 @@ XTResult xtAppendPathNode(XTPathNode* parent, XTPathNode* child) {
     return XT_SUCCESS;
 }
 
-XTResult xtFileSystemInit() {
+XTMountPoint rootMP = {
+    .data = NULL,
+    .device = NULL,
+    .fs = NULL
+};
 
+XTResult xtFileSystemInit() {
+    //Create root
+    xtCreatePathNode("", &rootMP, &root);
     return XT_SUCCESS;
 }
 
-XTResult xtOpenFile(const char* path, uint64_t flags, XTFile** out) {
+XTResult XTEXPORT xtOpenFile(const char* path, uint64_t flags, XTFile** out) {
+    XT_CHECK_ARG_IS_NULL(path);
+    XT_CHECK_ARG_IS_NULL(out);
     XTPathNode* pathNode = NULL;
     char* left = NULL;
     XT_TRY(xtFindPathNode(path, &pathNode, &left));
-    if (pathNode->mp == NULL) return XT_NOT_FOUND;
-    if (flags & XT_FILE_MODE_CREATE) {
-        pathNode->mp->fs->IO->CreateFile(pathNode->mp, left, flags & ~(XT_FILE_MODE_CREATE));
-    }
     if (pathNode == NULL) return XT_NOT_IMPLEMENTED;
     if (pathNode->mp == NULL) return XT_NOT_IMPLEMENTED;
     if (pathNode->mp->fs == NULL) return XT_NOT_IMPLEMENTED;
     if (pathNode->mp->fs->IO == NULL) return XT_NOT_IMPLEMENTED;
     if (pathNode->mp->fs->IO->OpenFile == NULL) return XT_NOT_IMPLEMENTED;
+    if (flags & XT_FILE_MODE_CREATE) {
+        if (pathNode->mp->fs->IO->CreateFile == NULL) return XT_NOT_IMPLEMENTED;
+        pathNode->mp->fs->IO->CreateFile(pathNode->mp, left, flags & ~(XT_FILE_MODE_CREATE));
+    }
     return pathNode->mp->fs->IO->OpenFile(pathNode->mp, left, flags & ~(XT_FILE_MODE_CREATE), out);
 }
 
-XTResult xtCloseFile(XTFile* file) {
+
+XTResult XTEXPORT xtOpenDirectory(const char* path, XTDirectory** out) {
+    XT_CHECK_ARG_IS_NULL(path);
+    XT_CHECK_ARG_IS_NULL(out);
+    XTPathNode* pathNode = NULL;
+    char* left = NULL;
+    XT_TRY(xtFindPathNode(path, &pathNode, &left));
+    XTDirectory* newDir = NULL;
+    XT_TRY(xtHeapAlloc(sizeof(XTDirectory), &newDir));
+    newDir->node = pathNode;
+    newDir->pos = 0;
+    *out = newDir;
+    return XT_SUCCESS;
+}
+
+XTResult XTEXPORT xtMakeFS(const char* path) {
+    XT_CHECK_ARG_IS_NULL(path);
+    XTPathNode* pathNode = NULL;
+    char* left = NULL;
+    XT_TRY(xtFindPathNode(path, &pathNode, &left));
+    if (pathNode == NULL) return XT_NOT_IMPLEMENTED;
+    if (pathNode->mp == NULL) return XT_NOT_IMPLEMENTED;
+    if (pathNode->mp->fs == NULL) return XT_NOT_IMPLEMENTED;
+    if (pathNode->mp->fs->IO == NULL) return XT_NOT_IMPLEMENTED;
+    if (pathNode->mp->fs->IO->MakeFS == NULL) return XT_NOT_IMPLEMENTED;
+    return pathNode->mp->fs->IO->MakeFS(pathNode->mp);
+}
+
+
+
+XTResult XTEXPORT xtCloseFile(XTFile* file) {
     XT_CHECK_ARG_IS_NULL(file);
     if (file->IO == NULL) return XT_NOT_IMPLEMENTED;
     if (file->IO->CloseFile == NULL) return XT_NOT_IMPLEMENTED;
@@ -132,17 +187,17 @@ XTResult xtCloseFile(XTFile* file) {
 }
 
 XTResult xtCheckName(const char* path) {
+    XT_CHECK_ARG_IS_NULL(path);
     for (;*path;++path) {
-        if (*path == '/' || *path == '\\') return XT_BAN_NAME;
+        if (*path == '/' || *path == '\\') return XT_BAD_NAME;
     }
     return XT_SUCCESS;
 }
 
-XTResult xtMount(const char* path, const char* filesystemName, XTFile* dev) {
+XTResult XTEXPORT xtMount(const char* path, const char* filesystemName, XTFile* dev) {
 
     XT_CHECK_ARG_IS_NULL(path);
     XT_CHECK_ARG_IS_NULL(filesystemName);
-    XT_CHECK_ARG_IS_NULL(dev);
 
     XTFileSystem* fs = NULL;
     for (XTList* l = filesystems; l; xtGetNextList(l, &l)) {
@@ -194,7 +249,7 @@ XTResult xtUnmount(const char* path) {
 
 }
 
-XTResult xtReadFile(XTFile* file, void* data, uint64_t offset, uint64_t size, uint64_t* read) {
+XTResult XTEXPORT xtReadFile(XTFile* file, void* data, uint64_t offset, uint64_t size, uint64_t* read) {
     XT_CHECK_ARG_IS_NULL(file);
     XT_CHECK_ARG_IS_NULL(data);
 
@@ -211,7 +266,7 @@ XTResult xtReadFile(XTFile* file, void* data, uint64_t offset, uint64_t size, ui
     return file->IO->ReadFile(file, data, offset, size, read);
 }
 
-XTResult xtMapFile(XTFile* file, uint64_t offset, uint64_t* size, void** out) {
+XTResult XTEXPORT xtMapFile(XTFile* file, uint64_t offset, uint64_t* size, void** out) {
     XT_CHECK_ARG_IS_NULL(file);
     XT_CHECK_ARG_IS_NULL(size);
     XT_CHECK_ARG_IS_NULL(out);
@@ -222,7 +277,7 @@ XTResult xtMapFile(XTFile* file, uint64_t offset, uint64_t* size, void** out) {
 
 }
 
-XTResult xtUnmapFile(XTFile* file, uint64_t offset, void* ptr, uint64_t size) {
+XTResult XTEXPORT xtUnmapFile(XTFile* file, uint64_t offset, void* ptr, uint64_t size) {
     XT_CHECK_ARG_IS_NULL(file);
     XT_CHECK_ARG_IS_NULL(size);
     XT_CHECK_ARG_IS_NULL(ptr);
@@ -230,12 +285,4 @@ XTResult xtUnmapFile(XTFile* file, uint64_t offset, void* ptr, uint64_t size) {
     if (file->IO == NULL) return XT_NOT_IMPLEMENTED;
     if (file->IO->UnmapFile == NULL) return XT_NOT_IMPLEMENTED;
     return file->IO->UnmapFile(file, offset, ptr, size);
-}
-
-XTResult xtWriteToBuffer(XTFile* file, const void* data, uint64_t* written) {
-    
-}
-
-XTResult xtFlushBuffers(XTFile* file) {
-
 }

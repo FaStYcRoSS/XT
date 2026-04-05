@@ -1,5 +1,5 @@
 
-MODULES = xtboot bootstub xtkernel user libs drivers
+MODULES = xtboot bootstub xtkernel user libs drivers tools
 
 .PHONY: all $(MODULES) ./build/xtos.img clean run
 
@@ -19,20 +19,22 @@ syspart:
 
 initrd:
 	mkdir $@
+	
 
 $(MODULES):
 	$(MAKE) -C $@
 
 ./build/xtos.img: $(MODULES)
 	tar -c initrd > efipart/XT/xtinitrd
-	python tools/mkimage.py
+	tools/mkimage
 
-run: ./build/xtos.img
+compile: ./build/xtos.img
+
+run:
 	qemu-system-x86_64 \
-	-D logs/log.txt -monitor stdio \
+	-D logs/log.txt -d in_asm -D logs/log.txt -monitor stdio \
 	-bios ./build/bios64.fd \
 	-usb \
-	-no-reboot -no-shutdown \
 	-drive format=raw,unit=0,file=./build/xtos.img \
 	-serial file:logs/serial.txt \
 	-device usb-mouse \

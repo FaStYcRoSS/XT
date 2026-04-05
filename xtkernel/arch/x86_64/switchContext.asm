@@ -176,6 +176,8 @@ isr_no_err_stub 32
 
 isr_no_err_stub 40
 
+isr_no_err_stub 255
+
 xtSyscallHandler:
 
     swapgs
@@ -185,9 +187,11 @@ xtSyscallHandler:
     push rcx
     push r11
     push r13
+    sti
     mov rcx, r10
     lea r10, [rel xtSyscallArray]
     call [r10+rax*8]
+    cli
     pop r13
     pop r11
     pop rcx

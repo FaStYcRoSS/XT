@@ -249,7 +249,7 @@ XTResult xtGetProcAddress(void* physImage, void* virtualImage, const char* funcN
     return XT_NOT_FOUND;
 }
 
-XTResult xtLoadModuleEx(XTProcess* process, const char* filename, void** base);
+XTResult xtLoadModuleEx(XTProcess* process, const char* filename, void** physBase, void** base);
 
 const char* suffixes[] = {
     "/initrd/",
@@ -259,42 +259,42 @@ const char* suffixes[] = {
     ""
 };
 
-XTResult xtLoadSubmodules(XTProcess* process, void* physImage, void* virtualImage) {
-    PIMAGE_NT_HEADERS nt = (PIMAGE_NT_HEADERS)((uint8_t*)physImage + ((PIMAGE_DOS_HEADER)physImage)->e_lfanew);
-    uint32_t importRVA = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress;
-    if (!importRVA) return XT_SUCCESS;
+// XTResult xtLoadSubmodules(XTProcess* process, void* physImage, void* virtualImage) {
+//     PIMAGE_NT_HEADERS nt = (PIMAGE_NT_HEADERS)((uint8_t*)physImage + ((PIMAGE_DOS_HEADER)physImage)->e_lfanew);
+//     uint32_t importRVA = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress;
+//     if (!importRVA) return XT_SUCCESS;
 
-    PIMAGE_IMPORT_DESCRIPTOR importDesc = (PIMAGE_IMPORT_DESCRIPTOR)((uint8_t*)physImage + importRVA);
+//     PIMAGE_IMPORT_DESCRIPTOR importDesc = (PIMAGE_IMPORT_DESCRIPTOR)((uint8_t*)physImage + importRVA);
 
-    while (importDesc->Name) {
-        const char* dllName = (const char*)((uint8_t*)physImage + importDesc->Name);
-        void* subModuleBase = NULL;
-        // Рекурсивная загрузка
-        xtLoadModuleEx(process, dllName, &subModuleBase);
+//     while (importDesc->Name) {
+//         const char* dllName = (const char*)((uint8_t*)physImage + importDesc->Name);
+//         void* subModuleBase = NULL;
+//         // Рекурсивная загрузка
+//         xtLoadModuleEx(process, dllName, &subModuleBase);
 
-        PIMAGE_NT_HEADERS nt = (PIMAGE_NT_HEADERS)(((PIMAGE_DOS_HEADER)subModuleBase)->e_lfanew + (uint8_t*)subModuleBase);
+//         PIMAGE_NT_HEADERS nt = (PIMAGE_NT_HEADERS)(((PIMAGE_DOS_HEADER)subModuleBase)->e_lfanew + (uint8_t*)subModuleBase);
 
-        if (!(nt->FileHeader.Characteristics & IMAGE_FILE_DLL) && nt->OptionalHeader.Subsystem != 33) {
-            return XT_INVALID_MODULE;
-        }
+//         if (!(nt->FileHeader.Characteristics & IMAGE_FILE_DLL) && nt->OptionalHeader.Subsystem != 33) {
+//             return XT_INVALID_MODULE;
+//         }
 
-        PIMAGE_THUNK_DATA64 thunk = (PIMAGE_THUNK_DATA64)((uint8_t*)physImage + importDesc->FirstThunk);
-        PIMAGE_THUNK_DATA64 origThunk = (PIMAGE_THUNK_DATA64)((uint8_t*)physImage + importDesc->OriginalFirstThunk);
+//         PIMAGE_THUNK_DATA64 thunk = (PIMAGE_THUNK_DATA64)((uint8_t*)physImage + importDesc->FirstThunk);
+//         PIMAGE_THUNK_DATA64 origThunk = (PIMAGE_THUNK_DATA64)((uint8_t*)physImage + importDesc->OriginalFirstThunk);
 
-        while (origThunk->u1.AddressOfData) {
-            if (!(origThunk->u1.Ordinal & IMAGE_ORDINAL_FLAG64)) {
-                PIMAGE_IMPORT_BY_NAME importName = (PIMAGE_IMPORT_BY_NAME)((uint8_t*)physImage + origThunk->u1.AddressOfData);
-                PFNXTFunc funcPtr = NULL;
-                xtGetProcAddress(subModuleBase, subModuleBase, (const char*)importName->Name, &funcPtr);
-                thunk->u1.Function = (uint64_t)funcPtr;
-            }
-            thunk++;
-            origThunk++;
-        }
-        importDesc++;
-    }
-    return XT_SUCCESS;
-}
+//         while (origThunk->u1.AddressOfData) {
+//             if (!(origThunk->u1.Ordinal & IMAGE_ORDINAL_FLAG64)) {
+//                 PIMAGE_IMPORT_BY_NAME importName = (PIMAGE_IMPORT_BY_NAME)((uint8_t*)physImage + origThunk->u1.AddressOfData);
+//                 PFNXTFunc funcPtr = NULL;
+//                 xtGetProcAddress(subModuleBase, subModuleBase, (const char*)importName->Name, &funcPtr);
+//                 thunk->u1.Function = (uint64_t)funcPtr;
+//             }
+//             thunk++;
+//             origThunk++;
+//         }
+//         importDesc++;
+//     }
+//     return XT_SUCCESS;
+// }
 
 
 void xtKernelMain(KernelBootInfo* bootInfo);
@@ -380,7 +380,7 @@ XTResult xtMapModuleToProcess(XTProcess* process, XTSharedPtr* physPtr, void* vi
     return XT_SUCCESS;
 }
 
-XTResult xtLoadModuleEx(XTProcess* process, const char* filename, void** base) {
+XTResult xtLoadModuleEx(XTProcess* process, const char* filename, void** physBase, void** base) {
     XTSharedPtr* physPtr = NULL;
     XT_TRY(xtGetOrLoadPhysicalModule(filename, &physPtr));
 
@@ -396,14 +396,14 @@ XTResult xtLoadModuleEx(XTProcess* process, const char* filename, void** base) {
     // 1. Маппим страницы в процесс
     xtMapModuleToProcess(process, physPtr, virtualBase);
 
-    // 2. Рекурсивно грузим зависимости
-    xtLoadSubmodules(process, HIGHER_MEM(mod->physicalImage), virtualBase);
+    //// 2. Рекурсивно грузим зависимости
+    //xtLoadSubmodules(process, HIGHER_MEM(mod->physicalImage), virtualBase);
 
     // 3. Применяем релокации ПРЯМО В МАППИНГ процесса 
     // (Поскольку страницы данных мы скопировали в CoW, мы не испортим оригинал)
     PIMAGE_NT_HEADERS nt = (PIMAGE_NT_HEADERS)((uint8_t*)HIGHER_MEM(mod->physicalImage) + ((PIMAGE_DOS_HEADER)HIGHER_MEM(mod->physicalImage))->e_lfanew);
     ApplyRelocations(HIGHER_MEM(mod->physicalImage), virtualBase, nt->OptionalHeader.ImageBase);
-
+    *physBase = mod->physicalImage;
     *base = virtualBase;
     return XT_SUCCESS;
 }
@@ -435,7 +435,6 @@ XTResult __declspec(dllexport) xtLoadKernelModule(const char* filename, void** b
 
 
     PFNXTDRIVERMAIN main = (PFNXTDRIVERMAIN)((uint8_t*)physBase + nt->OptionalHeader.AddressOfEntryPoint);
-    xtDebugPrint("driver main 0x%llx\n", main);
     if (!(mod->flags & 0x2) && (uint64_t)main > HIGH_MEM) {
         main(XT_LIBRARY_ATTACH);
         mod->flags |= 0x2;
@@ -444,95 +443,126 @@ XTResult __declspec(dllexport) xtLoadKernelModule(const char* filename, void** b
     return XT_SUCCESS;
 }
 
+
 XTResult xtPassArgs(
     XTProcess* process,
     const char** args,
-    void** out_argv
+    const char** envp,
+    void* imageBase,
+    XTUserParameters** params          // возвращает виртуальный адрес PEB в процессе
 ) {
-    uint64_t str_va_base = 0;
-    uint64_t argv_va_base = 0;
+    // 1. Подсчёт argc и envc
     int argc = 0;
-    uint64_t strtabsize = 0;
-
-    // 1. Считаем количество и общий размер строк
-    for (const char** i = args; *i; ++i, ++argc) {
-        uint64_t strsize = 0;
-        xtGetStringLength(*i, &strsize);
-        strtabsize += strsize + 1;
+    uint64_t args_str_total = 0;
+    for (const char** a = args; *a; ++a) {
+        ++argc;
+        uint64_t len;
+        xtGetStringLength(*a, &len);
+        args_str_total += len + 1;
     }
 
-    // 2. Выделяем и мапим таблицу строк (strtab)
-    strtabsize = (strtabsize + 0xFFF) & ~0xFFF;
-    xtGetRandomU64(&str_va_base);
-    str_va_base = ((str_va_base & ((1ull << 34) - 1)) << 12);
-
-    void* phys_strtab = NULL;
-    xtAllocatePages(NULL, strtabsize, &phys_strtab);
-    xtSetPages(process->pageTable, str_va_base, phys_strtab, strtabsize, XT_MEM_USER | XT_MEM_READ);
-    xtInsertVirtualMap(process, (void*)str_va_base, phys_strtab, strtabsize, XT_MEM_USER | XT_MEM_READ | XT_MEM_RESERVED | XT_MEM_WRITE);
-
-    // 3. Выделяем и мапим массив указателей (argv)
-    // ВАЖНО: argc + 1 для NULL-терминатора
-    uint64_t argv_size = (((argc + 1) * sizeof(char*)) + 0xFFF) & ~0xFFF;
-    xtGetRandomU64(&argv_va_base);
-    argv_va_base = ((argv_va_base & ((1ull << 34) - 1)) << 12);
-
-    void* phys_argv = NULL;
-    xtAllocatePages(NULL, argv_size, &phys_argv);
-    xtSetPages(process->pageTable, argv_va_base, phys_argv, argv_size, XT_MEM_USER | XT_MEM_READ);
-    xtInsertVirtualMap(process, (void*)argv_va_base, phys_argv, argv_size, XT_MEM_USER | XT_MEM_READ | XT_MEM_RESERVED | XT_MEM_WRITE);
-
-    // 4. Копируем данные через "окно" в ядре
-    uint8_t* k_strtab = (uint8_t*)HIGHER_MEM(phys_strtab);
-    uint64_t** k_argv = (uint64_t**)HIGHER_MEM(phys_argv);
-    
-    uint64_t current_str_va = str_va_base;
-
-    for (int i = 0; i < argc; i++) {
-        uint64_t strsize = 0;
-        xtGetStringLength(args[i], &strsize);
-        
-        // Копируем саму строку
-        xtCopyMem(k_strtab, args[i], strsize + 1);
-        
-        // Записываем ВИРТУАЛЬНЫЙ адрес строки в массив argv
-        k_argv[i] = (uint64_t*)current_str_va;
-        
-        k_strtab += strsize + 1;
-        current_str_va += strsize + 1;
+    int envc = 0;
+    uint64_t env_str_total = 0;
+    if (envp) {
+        for (const char** e = envp; *e; ++e) {
+            ++envc;
+            uint64_t len;
+            xtGetStringLength(*e, &len);
+            env_str_total += len + 1;
+        }
     }
 
-    // 5. Ставим обязательный NULL в конце
-    k_argv[argc] = NULL;
+    // 2. Расчёт смещений в едином блоке
+    uint64_t argv_array_size = (argc + 1) * sizeof(char*);
+    uint64_t envp_array_size = (envc + 1) * sizeof(char*);
+    uint64_t headers_size = sizeof(XTUserParameters);
 
-    *out_argv = (void*)argv_va_base;
-    
+    uint64_t total_size = headers_size + argv_array_size + envp_array_size +
+                          args_str_total + env_str_total;
+    total_size = (total_size + (1 << PAGE_SHIFT) - 1) & ~((1 << PAGE_SHIFT) - 1);
+
+    // 3. Выбор случайного виртуального адреса (ASLR) в пользовательском диапазоне
+    uint64_t va_base;
+    xtGetRandomU64(&va_base);
+    va_base &= 0x00007fffffffffff;      // 48-битное пользовательское пространство
+    va_base &= ~((1 << PAGE_SHIFT) - 1);        // выравнивание по границе страницы
+    if (va_base < 0x1000) va_base = 0x1000;
+
+    // 4. Выделение физических страниц
+    void* phys = NULL;
+    XT_TRY(xtAllocatePages(NULL, total_size, &phys));
+
+    // 5. Отображение страниц в процесс (чтение/запись из пользователя)
+    XT_TRY(xtSetPages(process->pageTable, va_base, phys, total_size,
+                      XT_MEM_USER | XT_MEM_READ | XT_MEM_WRITE));
+    XT_TRY(xtInsertVirtualMap(process, (void*)va_base, phys, total_size,
+                              XT_MEM_USER | XT_MEM_READ | XT_MEM_WRITE | XT_MEM_RESERVED));
+
+    // 6. Заполнение через временное отображение в ядре
+    uint8_t* kptr = (uint8_t*)HIGHER_MEM(phys);
+    XTUserParameters* _params = (XTUserParameters*)kptr;
+    char*** k_argv = (char***)(kptr + headers_size);
+    char*** k_envp = (char***)(kptr + headers_size + argv_array_size);
+    char* k_str = (char*)(kptr + headers_size + argv_array_size + envp_array_size);
+
+    // Заполняем PEB
+    _params->argc = argc;
+    _params->argv = (const char**)(va_base + headers_size);               // вирт. адрес массива argv
+    _params->envp = (envc ? (const char**)(va_base + headers_size + argv_array_size) : NULL);
+    _params->imageBase = imageBase;
+    // Копируем аргументы
+    uint64_t current_str_va = va_base + headers_size + argv_array_size + envp_array_size;
+    for (int i = 0; i < argc; ++i) {
+        uint64_t len;
+        xtGetStringLength(args[i], &len);
+        xtCopyMem(k_str, args[i], len + 1);
+        k_argv[i] = (char**)current_str_va;
+        k_str += len + 1;
+        current_str_va += len + 1;
+    }
+    k_argv[argc] = NULL;   // терминатор массива argv
+
+    // Копируем окружение
+    if (envp) {
+        for (int i = 0; i < envc; ++i) {
+            uint64_t len;
+            xtGetStringLength(envp[i], &len);
+            xtCopyMem(k_str, envp[i], len + 1);
+            k_envp[i] = (char**)current_str_va;
+            k_str += len + 1;
+            current_str_va += len + 1;
+        }
+        k_envp[envc] = NULL;
+    }
+
+    *params = (void*)va_base;
     return XT_SUCCESS;
 }
+
 XTResult xtExecuteProgram(
     XTProcess* process,
     const char** args,
-    const char** evnp
+    const char** envp
 ) {
     XTResult result = 0;
-    PFNXTMAIN main = NULL;
+    PFNXTUserMain main = NULL;
 
     void* virtualBase = NULL;
-    result = xtLoadModuleEx(process, args[0], &virtualBase);
+    void* physBase = NULL;
+    result = xtLoadModuleEx(process, args[0], &physBase, &virtualBase);
     if (XT_IS_ERROR(result)) {
         return result;
     }
 
-    void* physBase = NULL;
-    xtFindModule(args[0], &physBase);
-
     xtGetEntryPoint(physBase, virtualBase, &main);
 
-    void* vargs = NULL;
+    XTUserParameters* params = NULL;
     result = xtPassArgs(
         process,
         args,
-        &vargs
+        envp,
+        virtualBase,
+        &params
     );
     if (XT_IS_ERROR(result)) {
         return result;
@@ -542,7 +572,7 @@ XTResult xtExecuteProgram(
         process,
         (PFNXTTHREADFUNC)(main),
         0,
-        vargs,
+        params,
         XT_THREAD_USER | XT_THREAD_RUN_STATE,
         &thread
     ));

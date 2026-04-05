@@ -7,6 +7,7 @@
 #include <xt/io.h>
 #include <xt/acpi.h>
 #include <xt/linker.h>
+#include <xt/user.h>
 
 #if defined(__x86_64__)
 #include <xt/arch/x86_64.h>
@@ -39,13 +40,15 @@ void xtKernelMain(KernelBootInfo* bootInfo) {
     xtSerialInit();
     xtMemoryInit();
 
+    XT_ASSERT(xtACPIInit());
+
     xtArchInit();
 
     XT_ASSERT(xtSchedulerInit());
     
     XT_ASSERT(xtRamDiskInit());
 
-    XT_ASSERT(xtACPIInit());
+
 
     uint32_t* framebuffer = bootInfo->framebuffer;
 
@@ -56,13 +59,21 @@ void xtKernelMain(KernelBootInfo* bootInfo) {
         &process
     ));
 
+    xtDuplicateHandle(
+        process,
+        XT_STDOUT,
+        XT_FILE_MODE_READ | XT_FILE_MODE_SHARE | XT_FILE_MODE_WRITE,
+        XT_DESCRIPTOR_TYPE_FILE,
+        gSerialDevice
+    );
+
     const char* args[] = {
         "/initrd/xtinit.xte",
         NULL
     };
+    xtDebugPrint("Hello from kernel!");
 
     xtInsertKernelModule();
-    xtDebugPrint("Load user program\n");
     XT_ASSERT(
         xtExecuteProgram(
             process,
@@ -70,13 +81,11 @@ void xtKernelMain(KernelBootInfo* bootInfo) {
             NULL
         );
     );
-    xtDebugPrint("Load kernel module\n");
     void* base = NULL;
     uint64_t flags = 0;
     XT_ASSERT(
         xtLoadKernelModule("/initrd/ahci.xtd", &base)
     );
-
     xtSwitchTo();
 
     while(1);

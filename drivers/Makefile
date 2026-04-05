@@ -1,4 +1,4 @@
-DRIVERS = pci ahci
+DRIVERS = pci ahci vfat
 
 .PHONY: all $(DRIVERS)
 

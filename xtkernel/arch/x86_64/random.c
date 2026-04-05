@@ -1,4 +1,5 @@
 #include <xt/random.h>
+#include <xt/kernel.h>
 static uint64_t boot_seed;
 
 XTResult xtEarlyRandomInit() {
@@ -12,7 +13,7 @@ XTResult xtEarlyRandomInit() {
     // Но rdtsc хватит для начала.
 }
 
-XTResult xtGetRandomU64(uint64_t* random) {
+XTResult XTEXPORT xtGetRandomU64(uint64_t* random) {
     XT_CHECK_ARG_IS_NULL(random);
     uint64_t x = boot_seed;
     x ^= x << 13;

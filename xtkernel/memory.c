@@ -69,7 +69,7 @@ void xtHeapSetupBlock(void* memory, uint64_t size) {
 }
 
 // Выделение памяти
-XTResult xtHeapAlloc(uint64_t size, void** out) {
+XTResult XTEXPORT xtHeapAlloc(uint64_t size, void** out) {
     XT_CHECK_ARG_IS_NULL(out);
     
     // Инициализируем кучу при первом вызове
@@ -129,7 +129,8 @@ XTResult xtHeapAlloc(uint64_t size, void** out) {
     
     void* page_raw = NULL;
     // Выделяем 16КБ (4 страницы по 4КБ)
-    XT_TRY(xtAllocatePages(NULL, 0x4000, &page_raw));
+    uint64_t page_needed_size = 0x4000 ? needed_size < 0x4000 : (((needed_size >> 14) + 1) << 14);
+    XT_TRY(xtAllocatePages(NULL, page_needed_size, &page_raw));
     page_raw = HIGHER_MEM(page_raw);
 
     // 1. В начале страницы кладем структуру управления XTHeap
@@ -155,7 +156,7 @@ XTResult xtHeapAlloc(uint64_t size, void** out) {
 }
 
 // Освобождение памяти
-XTResult xtHeapFree(void* ptr) {
+XTResult XTEXPORT xtHeapFree(void* ptr) {
     XT_CHECK_ARG_IS_NULL(ptr);
     
     // Получаем заголовок блока

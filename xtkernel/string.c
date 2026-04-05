@@ -1,6 +1,7 @@
 #include <xt/result.h>
 #include <xt/memory.h>
 #include <xt/string.h>
+#include <xt/kernel.h>
 
 // Вспомогательная функция (лучше использовать символы, а не магические числа)
 int tolower(int _ch) {
@@ -9,7 +10,7 @@ int tolower(int _ch) {
 }
 
 // Безопасное сравнение памяти
-XTResult xtCompareMemory(const void* left, const void* right, uint64_t len) {
+XTResult XTEXPORT xtCompareMemory(const void* left, const void* right, uint64_t len) {
     const uint8_t* l = (const uint8_t*)left;
     const uint8_t* r = (const uint8_t*)right;
 
@@ -20,18 +21,19 @@ XTResult xtCompareMemory(const void* left, const void* right, uint64_t len) {
 }
 
 // Сравнение строк (аналог strncmp, но возвращает XTResult)
-XTResult xtStringCmp(const char* left, const char* right, uint64_t max) {
+XTResult XTEXPORT xtStringCmp(const char* left, const char* right, uint64_t max) {
     if (max == 0) return XT_SUCCESS;
 
     for (uint64_t i = 0; i < max; ++i) {
         if (left[i] != right[i]) return XT_NOT_EQUAL;
         if (left[i] == '\0') return XT_SUCCESS; // Строки закончились одновременно
+
     }
     return XT_SUCCESS;
 }
 
 // Регистронезависимое сравнение строк
-XTResult xtStringICmp(const char* left, const char* right, uint64_t max) {
+XTResult XTEXPORT xtStringICmp(const char* left, const char* right, uint64_t max) {
     if (max == 0) return XT_SUCCESS;
 
     for (uint64_t i = 0; i < max; ++i) {
@@ -42,7 +44,7 @@ XTResult xtStringICmp(const char* left, const char* right, uint64_t max) {
     return XT_SUCCESS;
 }
 
-XTResult xtGetStringLength(const char* str, uint64_t* len) {
+XTResult XTEXPORT xtGetStringLength(const char* str, uint64_t* len) {
     XT_CHECK_ARG_IS_NULL(len);
     XT_CHECK_ARG_IS_NULL(str);
     uint64_t result = 0;
@@ -52,7 +54,7 @@ XTResult xtGetStringLength(const char* str, uint64_t* len) {
 
 }
 
-XTResult xtCopyString(char* dst, const char* src, uint64_t max) {
+XTResult XTEXPORT xtCopyString(char* dst, const char* src, uint64_t max) {
     XT_CHECK_ARG_IS_NULL(dst);
     XT_CHECK_ARG_IS_NULL(src);
     XT_CHECK_ARG_IS_NULL(dst);
@@ -66,7 +68,7 @@ XTResult xtCopyString(char* dst, const char* src, uint64_t max) {
 }
 
 
-XTResult xtCopyMem(void* dst, void* src, uint64_t size) {
+XTResult XTEXPORT xtCopyMem(void* dst, void* src, uint64_t size) {
     XT_CHECK_ARG_IS_NULL(dst);
     XT_CHECK_ARG_IS_NULL(src);
     for(uint64_t i = 0; i < size; ++i) {
@@ -75,7 +77,7 @@ XTResult xtCopyMem(void* dst, void* src, uint64_t size) {
     return XT_SUCCESS;
 }
 
-XTResult xtDuplicateString(const char* str, const char** out) {
+XTResult XTEXPORT xtDuplicateString(const char* str, const char** out) {
     XT_CHECK_ARG_IS_NULL(str);
     XT_CHECK_ARG_IS_NULL(out);
     char* newStr = NULL;
@@ -89,7 +91,7 @@ XTResult xtDuplicateString(const char* str, const char** out) {
 }
 
 
-XTResult xtSetMem(void* dst, uint8_t c, uint64_t size) {
+XTResult XTEXPORT xtSetMem(void* dst, uint8_t c, uint64_t size) {
     XT_CHECK_ARG_IS_NULL(dst);
     for(uint64_t i = 0; i < size; ++i) {
         ((char*)dst)[i] = c;

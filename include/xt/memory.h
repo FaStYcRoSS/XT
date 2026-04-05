@@ -16,10 +16,12 @@ typedef struct XTHeap XTHeap;
 #define XT_MEM_UNUSABLE 5
 #define XT_MEM_MMIO     6
 
+#define XT_MEM_SHARED 0x0100
 #define XT_MEM_USER   0x0200
 #define XT_MEM_READ   0x0400
 #define XT_MEM_WRITE  0x0800
 #define XT_MEM_EXEC   0x1000
+
 
 #define __XT_USER_PTR__
 

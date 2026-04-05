@@ -25,7 +25,8 @@ const char* results[] = {
     "ACCESS_DENIED",
     "END_OF_FILE",
     "INVALID_MODULE",
-    "ARCH_EXCEPTION"
+    "ARCH_EXCEPTION",
+    "ALREADY_EXISTS",
 };
 
 const char* xtResultToStr(XTResult result) {

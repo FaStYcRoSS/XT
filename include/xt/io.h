@@ -2,7 +2,7 @@
 #define __XT_IO_H__
 
 #include <xt/result.h>
-
+#include <xt/list.h>
 #include <stdint.h>
 
 typedef struct XTFile XTFile;
@@ -10,28 +10,35 @@ typedef struct XTFile XTFile;
 typedef struct XTMountPoint XTMountPoint;
 
 typedef struct XTFileInfo {
-    const char* name;
-    uint64_t    size;
-    uint64_t    mktime;
-    uint64_t    access;
+    char        name[256];
+    uint64_t    FileSize;
+    uint64_t    PhysicalSize;
+    uint64_t    createdTime;
+    uint64_t    lastAccessTime;
+    uint64_t    lastWriteTime;
+    uint64_t    flags;
+    uint64_t    userOwnerId;
 } XTFileInfo;
 
-typedef struct XTDirectory {
-    uint64_t pos;
-    void*    fsData;
-} XTDirectory;
+typedef struct XTDirectory XTDirectory;
 typedef struct XTFileBuffer XTFileBuffer;
 
-typedef XTResult(*PFNXTWRITEBUFFER)(XTFileBuffer* buffer, const void* data, uint64_t* written);
-typedef XTResult(*PFNXTREADBUFFER)(XTFileBuffer* buffer, void* data, uint64_t* read);
+#define XT_PATH_NODE_TYPE_FILE      0
+#define XT_PATH_NODE_TYPE_DIRECTORY 1
 
-typedef struct XTFileBuffer {
-    XTFile* file;
-    void*   ReadData;
-    void*   WriteData;
-    PFNXTWRITEBUFFER WriteBuffer;
-    PFNXTREADBUFFER  ReadBuffer;
-} XTFileBuffer;
+
+typedef struct XTPathNode {
+    XTMountPoint* mp;
+    const char* name;
+    XTList*     nodes;
+} XTPathNode;
+
+struct XTDirectory {
+    XTPathNode* node;
+    void* data;
+    uint64_t pos;
+};
+
 
 typedef XTResult(*PFNXTWRITEFILE)(XTFile* file, const void* data, uint64_t offset, uint64_t count, uint64_t* written);
 typedef XTResult(*PFNXTREADFILE)(XTFile* file, void* data, uint64_t offset, uint64_t count, uint64_t* read);
@@ -45,6 +52,8 @@ typedef XTResult(*PFNXTCREATEFILE)(XTMountPoint* mp, const char* name, uint64_t 
 typedef XTResult(*PFNXTCLOSEFILE)(XTMountPoint* mp, XTFile* file);
 typedef XTResult(*PFNXTMOUNT)(XTMountPoint* mp);
 typedef XTResult(*PFNXTUNMOUNT)(XTMountPoint* mp);
+typedef XTResult(*PFNXTGETFILEINFO)(XTFile* file, XTFileInfo* info);
+typedef XTResult(*PFNXTMAKEFILESYSTEM)(XTMountPoint* mp);
 
 typedef struct XTFileSystemIO {
     PFNXTOPENDIRECTORY OpenDirectory;
@@ -53,6 +62,7 @@ typedef struct XTFileSystemIO {
     PFNXTCREATEFILE    CreateFile;
     PFNXTMOUNT         Mount;
     PFNXTUNMOUNT       Unmount;
+    PFNXTMAKEFILESYSTEM MakeFS;
 } XTFileSystemIO;
 
 typedef struct XTFileIO {
@@ -61,7 +71,8 @@ typedef struct XTFileIO {
     PFNXTDEVICEIOCTL DeviceIO;
     PFNXTMAPFILE     MapFile;
     PFNXTUNMAPFILE   UnmapFile;
-    PFNXTCLOSEFILE     CloseFile;
+    PFNXTCLOSEFILE   CloseFile;
+    PFNXTGETFILEINFO GetFileInfo;
 } XTFileIO;
 
 typedef struct XTFileSystem {
@@ -78,7 +89,6 @@ typedef struct XTMountPoint {
 struct XTFile {
     XTMountPoint* mountPoint;
     XTFileIO* IO;
-    XTFileBuffer* buffer;
     void* data;
 };
 
@@ -93,21 +103,14 @@ typedef struct XTDescriptor {
     uint32_t access;
 } XTDescriptor;
 
-#define XT_DESCRIPTOR_TYPE_UNDEFINED 0
-#define XT_DESCRIPTOR_TYPE_PROCESS   1
-#define XT_DESCRIPTOR_TYPE_FILE      2
-#define XT_DESCRIPTOR_TYPE_DIRECTORY 3
-#define XT_DESCRIPTOR_TYPE_THREAD    4
-
-typedef struct XTDescriptorTable {
-    XTDescriptor* descs[512];
-} XTDescriptorTable;
 
 #define XT_FILE_MODE_READ           0x01
 #define XT_FILE_MODE_WRITE          0x02
-#define XT_FILE_MODE_SHARE          0x04
-#define XT_FILE_MODE_CREATE         0x08
-#define XT_FILE_ATTRIBUTE_DIRECTORY 0x10
+#define XT_FILE_MODE_CREATE         0x04
+#define XT_FILE_ATTRIBUTE_DIRECTORY 0x08
+#define XT_FILE_SHARE_DELETE        0x10
+#define XT_FILE_SHARE_READ          0x20
+#define XT_FILE_SHARE_WRITE         0x40
 
 
 XTResult xtWriteFile(XTFile* file, const void* data, uint64_t offset, uint64_t size, uint64_t* written);
@@ -116,6 +119,9 @@ XTResult xtOpenFile(const char* path, uint64_t flags, XTFile** out);
 XTResult xtCloseFile(XTFile* file);
 XTResult xtMount(const char* path, const char* filesystem, XTFile* dev);
 XTResult xtUnmount(const char* path);
+XTResult xtReadDirectory(XTDirectory* dir, XTFileInfo* info);
+XTResult xtOpenDirectory(const char* path, XTDirectory** dir);
+XTResult xtGetFileInfo(XTFile* file, XTFileInfo* info);
 
 XTResult xtMapFile(XTFile* file, uint64_t offset, uint64_t* size, void** out);
 XTResult xtUnmapFile(XTFile* file, uint64_t offset, void* ptr, uint64_t size);
@@ -124,9 +130,8 @@ XTResult xtWriteToBuffer(XTFile* file, const void* data, uint64_t* written);
 
 XTResult xtFlushBuffers(XTFile* file);
 
-XTResult xtSetFileBuffer(XTFile* file, uint64_t flags);
-
 XTResult xtRegisterFileSystem(XTFileSystem* fs);
+XTResult xtMakeFS(const char* path);
 
 extern XTFile* gSerialDevice;
 

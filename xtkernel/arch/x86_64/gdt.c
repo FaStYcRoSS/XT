@@ -150,7 +150,12 @@ void xtPageFaultHandler() {
     }
 
     void* newPage = NULL;
-    XT_TRY(xtAllocatePages(NULL, 0x1000, &newPage));
+    if (mapEntry->file) {
+        uint64_t size = 0x1000;
+        uint64_t offset = mapEntry->virtualStart - errorVM;
+        xtMapFile(mapEntry->file, mapEntry->offset + offset, size, &newPage);
+    }
+    else XT_TRY(xtAllocatePages(NULL, 0x1000, &newPage));
     errorVM = (errorVM) & (~(0xfff));
     xtSetPages(
         currentProcess->pageTable,
@@ -159,6 +164,7 @@ void xtPageFaultHandler() {
         0x1000,
         mapEntry->attr
     );
+
     xtInvalidatePage(errorVM);
 }
 

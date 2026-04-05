@@ -11,30 +11,21 @@
 #define XT_STDOUT          ((uint64_t)1)
 #define XT_STDERR          ((uint64_t)2)
 
-typedef XTResult(*PFNXTMAIN)(int argc, char** argv, char** envp);
+typedef struct XTUserParameters {
+    int64_t argc;
+    const char** argv;
+    char** envp;
+    void* imageBase;
+} XTUserParameters; 
 
-int64_t main(int argc, char* argv[], char* envp[]);
+typedef XTResult(*PFNXTUserMain)(XTUserParameters*);
 
-typedef struct XTUserModuleInstance {
-    const char* name;
-    void* base;
-    struct XTUserModuleInstance* next;
-} XTUserModuleInstance;
-
-typedef struct XTProcessEnvironmentBlock {
-    const char** args;
-    const char** envp;
-    XTUserModuleInstance* modules;
-} XTProcessEnvironmentBlock;
-
-typedef struct XTThreadEnvironmentBlock {
-    XTProcessEnvironmentBlock* peb;
-    void* tls;
-} XTThreadEnvironmentBlock;
+XTResult xtMain(XTUserParameters* params);
 
 XTResult xtUserWriteFile(
     uint64_t handleId,
     const void* data,
+    uint64_t offset,
     uint64_t count,
     uint64_t* written
 );
@@ -96,6 +87,7 @@ XTResult xtUserSetCurrentDirectory(
 XTResult xtUserReadFile(
     uint64_t handleId,
     void* data,
+    uint64_t offset,
     uint64_t count,
     uint64_t* read
 );

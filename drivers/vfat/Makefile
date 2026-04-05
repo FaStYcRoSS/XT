@@ -1,11 +1,11 @@
 include ../../config.mk
 
-CURRENT_DRIVER_NAME = pci
+CURRENT_DRIVER_NAME = vfat
 
-all: ../../obj/drivers/$(CURRENT_DRIVER_NAME) ../../initrd/$(CURRENT_DRIVER_NAME).xtd
+all: ../../obj/drivers/$(CURRENT_DRIVER_NAME) ../../syspart/XT/drivers/$(CURRENT_DRIVER_NAME).xtd
 
 SOURCES = $(wildcard *.c)
-OBJS = $(patsubst %.c, ../../obj/drivers/pci/%.o, $(SOURCES)) 
+OBJS = $(patsubst %.c, ../../obj/drivers/vfat/%.o, $(SOURCES)) 
 
 ../../obj/drivers/$(CURRENT_DRIVER_NAME):
 	mkdir ..\..\obj\drivers\$(CURRENT_DRIVER_NAME)

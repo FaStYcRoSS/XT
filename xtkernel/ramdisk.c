@@ -108,7 +108,6 @@ XTResult tarOpenFile(XTMountPoint* mp, const char* name, uint64_t flags, XTFile*
             file->data = fileData;
             file->IO = &fileIO;
             file->mountPoint = mp;
-            file->buffer = NULL;
             *out = file;
             break;
         }

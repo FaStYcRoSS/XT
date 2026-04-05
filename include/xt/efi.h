@@ -44,5 +44,7 @@ typedef struct KernelBootInfo {
     EFI_MEMORY_DESCRIPTOR descs[1];
 } KernelBootInfo;
 
+
+
 #endif
 

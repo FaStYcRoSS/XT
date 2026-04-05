@@ -72,6 +72,7 @@ XTResult xtInsertVirtualMap(
     xtAppendList(process->memoryMap, newNode);
     return XT_SUCCESS;
 }
+
 XTResult xtFindVirtualMap(
     XTProcess* process,
     void* ptr,
@@ -95,3 +96,38 @@ XTResult xtFindVirtualMap(
     }
     return XT_NOT_FOUND;
 }
+
+// XTResult xtAccessPtr(void* ptr, size_t size) {
+
+//     XTProcess* currentProcess = NULL;
+//     xtGetCurrentProcess(&currentProcess);
+//     void* physPtr = NULL;
+//     XTResult result = xtGetPhysicalAddress(currentProcess->pageTable, ptr, &physPtr);
+//     if (result != XT_NOT_FOUND) {
+//         return XT_SUCCESS;
+//     }
+//     XTVirtualMap* mapEntry = NULL;
+//     size = ((((((uint64_t)ptr) & 0xfff) + size) >> PAGE_SHIFT) + 1) << PAGE_SHIFT;
+//     ptr = ((uint64_t)ptr) & ~(0xfff);
+//     XTList* prev = NULL;
+//     XTResult result = xtFindVirtualMap(
+//         currentProcess,
+//         ptr,
+//         &mapEntry,
+//         &prev
+//     );
+//     if (result == XT_NOT_FOUND) {
+//         return XT_NOT_FOUND;
+//     }
+//     void* newPage = NULL;
+//     XT_TRY(xtAllocatePages(NULL, size, &newPage));
+//     xtSetPages(
+//         currentProcess->pageTable,
+//         ptr,
+//         newPage,
+//         0x1000,
+//         mapEntry->attr
+//     );
+//     xtInvalidatePage(ptr);
+//     return XT_SUCCESS;
+// }

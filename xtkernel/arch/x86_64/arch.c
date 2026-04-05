@@ -7,6 +7,9 @@ XTResult xtEarlyRandomInit();
 
 extern void* kernelPageTable;
 
+
+
+
 XTResult xtArchInit() {
     asm volatile("mov %%cr3, %%rax":"=a"(kernelPageTable));
     XT_TRY(xtDTInit());
@@ -24,5 +27,6 @@ XTResult xtArchInit() {
         0x1000,
         XT_MEM_EXEC | XT_MEM_READ | XT_MEM_USER
     );
+    xtArchACPIInit();
     return XT_SUCCESS;
 }
