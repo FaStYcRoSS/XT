@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <xt/io.h>
 #include <xt/kernel.h>
+#include <xt/memory.h>
 
 XTResult xtUserWriteFile(
     uint64_t handleId, 
@@ -23,8 +24,17 @@ XTResult xtUserWriteFile(
     if (XT_IS_ERROR(result)) {
         XT_ASSERT(result);
     }
-    result = xtWriteFile(desc->desc, data, 0, size, written);
-    xtDebugPrint("Result is %s\n", xtResultToStr(result));
+    void* newData = NULL;
+    xtHeapAlloc(size, &newData);
+    result = xtCopyFromUser(newData, data, size);
+
+    if (result == XT_ACCESS_VIOLATION) {
+        xtHeapFree(newData);
+        return result;
+    }
+    result = xtWriteFile(desc->desc, newData, offset, size, written);
+    xtHeapFree(newData);
+    return result;
 }
 
 XTResult xtUserTerminateThread(uint64_t handleId, uint64_t code) {
@@ -60,6 +70,14 @@ XTResult xtUserReadFile(
     }
     if (desc->type != XT_DESCRIPTOR_TYPE_FILE) return XT_INVALID_PARAMETER;
     if (!(desc->access & XT_FILE_MODE_READ)) return XT_ACCESS_DENIED;
-    return xtReadFile(desc->desc, data, 0, size, read);
+    void* newData = NULL;
+    xtHeapAlloc(size, &newData);
+    result = xtReadFile(desc->desc, newData, offset, size, read);
+    XTResult copyResult = xtCopyToUser(data, newData, read);
+    xtHeapFree(newData);
+    if (copyResult == XT_ACCESS_VIOLATION) {
+        return copyResult;
+    }
+    return result;
 }
 

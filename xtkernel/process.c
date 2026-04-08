@@ -7,6 +7,7 @@
 #include <xt/random.h>
 #include <xt/kernel.h>
 #include <xt/string.h>
+#include <xt/queue.h>
 
 
 static void xtFreeDescriptorTree(void* node, int level) {
@@ -95,11 +96,13 @@ XTResult xtDuplicateHandle(XTProcess* process, uint64_t handle,
 extern void* kernelPageTable;
 
 extern XTList* threads;
+
 extern XTList* currentThreadIterator;
+
 
 extern uint64_t threadCount;
 
-
+extern XTQueue* runQueue;
 
 XTResult xtFindThreadList(XTThread* thread, XTList** out) {
     XT_CHECK_ARG_IS_NULL(thread);
@@ -123,26 +126,9 @@ XTResult xtTerminateThread(XTThread* thread, XTResult code) {
     xtGetCurrentThread(&currentThread);
 
     // Удаляем поток из глобального списка планировщика
-    XTList* globalPrev = NULL;
-    XTList* globalIter = threads;
-    while (globalIter) {
-        XTThread* t = NULL;
-        xtGetListData(globalIter, &t);
-        if (t == thread) {
-            if (globalPrev)
-                xtSetNextList(globalPrev, globalIter->next);
-            else
-                threads = globalIter->next;
-            if (currentThreadIterator == globalIter) {
-                currentThreadIterator = globalIter->next;
-                if (!currentThreadIterator) currentThreadIterator = threads;
-            }
-            xtDestroyList(globalIter);
-            break;
-        }
-        globalPrev = globalIter;
-        xtGetNextList(globalIter, &globalIter);
-    }
+    XTList* threadIter = NULL;
+    xtFindThreadList(thread, &threadIter);
+    xtRemoveFromList(threads, threadIter);
 
     // Помечаем поток завершённым
     thread->state = (thread->state & ~0x7f) | XT_THREAD_TERMINATED_STATE;
@@ -166,6 +152,11 @@ XTResult xtTerminateThread(XTThread* thread, XTResult code) {
     }
     return XT_SUCCESS;
 }
+
+
+XTList* processess = NULL;
+
+uint64_t lastProcessId = 0;
 
 XTResult xtTerminateProcess(XTProcess* process, XTResult code) {
     XT_CHECK_ARG_IS_NULL(process);
@@ -243,11 +234,21 @@ XTResult xtTerminateProcess(XTProcess* process, XTResult code) {
         process->descriptorRoot = NULL;
     }
 
+    for (XTList* l = processess; l; xtGetNextList(l, &l)) {
+        XTProcess* ourProcess = NULL;
+        xtGetListData(l, &ourProcess);
+        if (ourProcess == process) {
+            xtRemoveFromList(processess, l);
+        }
+    }
+
     // Освобождаем таблицу страниц
     if (process->pageTable) {
         xtFreePages(process->pageTable, 0x1000);
     }
-
+    if (process->id < lastProcessId) {
+        lastProcessId = process->id;
+    }
     // Освобождаем сам процесс
     xtHeapFree(process);
 
@@ -255,7 +256,6 @@ XTResult xtTerminateProcess(XTProcess* process, XTResult code) {
 }
 
 extern void xtUserExit();
-
 
 
 XTResult xtCreateProcess(    
@@ -276,6 +276,15 @@ XTResult xtCreateProcess(
     
     result->pageTable = newPageTable;
     result->parentProcess = parentProcess;
+    result->id = lastProcessId++;
+    XTList* newProcessList = NULL;
+    xtCreateList(result, &newProcessList);
+    if (processess == NULL) {
+        processess = newProcessList;
+    }
+    else {
+        xtAppendList(processess, newProcessList);
+    }
     *out = result;
     
     return XT_SUCCESS;
@@ -388,16 +397,24 @@ XTResult XTEXPORT xtCreateThread(
         xtSetCurrentThread(result);
         currentThreadIterator = threads;
         result->id = 0;
-    } else {
-        // ... (поиск свободного слота, если нужно)
+    }
+    else {
+        for (XTList* i = threads; i; xtGetNextList(i, &i)) {
+            XTThread* thread = NULL;
+            xtGetListData(i, &thread);
+            if (thread->state == XT_THREAD_TERMINATED_STATE) {
+                result = thread;
+            }
+        }
+    }
+
+    if (result == NULL) {
         XT_TRY(xtHeapAlloc(sizeof(XTThread), &result));
         XTList* newList = NULL;
         XT_TRY(xtCreateList(result, &newList));
         xtAppendList(threads, newList);
         result->id = ++threadCount;
     }
-
-    // ... (заполнение полей потока)
     result->process = process;
     result->context = ctx;
     result->result = 0;
@@ -405,15 +422,14 @@ XTResult XTEXPORT xtCreateThread(
     result->privilage = 1;
     result->ticks = 1;
     result->kernelStack = kernelStack+0x4000;
-    // Добавляем в список потоков процесса
     XTList* threadList = NULL;
     XT_TRY(xtCreateList(result, &threadList));
     if (process->threads == NULL) {
         process->threads = threadList;
-    } else {
+    }
+    else {
         xtAppendList(process->threads, threadList);
     }
-    process->activeThreads++;  // увеличиваем счётчик
 
     *out = result;
     return XT_SUCCESS;

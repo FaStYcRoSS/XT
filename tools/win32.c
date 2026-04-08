@@ -3,6 +3,7 @@
 #include <xt/memory.h>
 #include <xt/random.h>
 #include <xt/string.h>
+#include <xt/encodings.h>
 #include <windows.h>
 #include <stdio.h>
 #include <time.h>
@@ -63,9 +64,12 @@ XTResult win32GetFileInfo(XTFile* file, XTFileInfo* info) {
     info->createdTime = nt2unixTime(byHandle.ftCreationTime);
     info->lastAccessTime = nt2unixTime(byHandle.ftLastAccessTime);
     info->lastWriteTime = nt2unixTime(byHandle.ftLastWriteTime);
-    CHAR szPath[MAX_PATH];
-    DWORD dwRet = GetFinalPathNameByHandleA(file->data, szPath, MAX_PATH, VOLUME_NAME_DOS);
-    xtCopyMem(info->name, szPath, dwRet);
+    WCHAR wname[MAX_PATH];
+    DWORD dwRet = GetFinalPathNameByHandleW(file->data, wname, MAX_PATH, VOLUME_NAME_DOS);
+    xtUTF16toUTF8(wname, info->name);
+    info->flags = (byHandle.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) 
+              ? XT_FILE_ATTRIBUTE_DIRECTORY : 0;
+    info->flags |= XT_FILE_MODE_READ | XT_FILE_MODE_WRITE;
     return XT_SUCCESS;
 }
 
@@ -112,8 +116,10 @@ XTFileIO win32IO = {
 
 XTResult win32OpenFile(XTMountPoint* mp, const char* name, uint64_t flags, XTFile** out);
 XTResult win32CreateFile(XTMountPoint* mp, const char* name, uint64_t flags) {
-    HANDLE hFile = CreateFileA(
-        name,
+    WCHAR wname[256];
+    xtUTF8toUTF16(name, wname);
+    HANDLE hFile = CreateFileW(
+        wname,
         GENERIC_ALL,
         0,
         NULL,
@@ -126,6 +132,45 @@ XTResult win32CreateFile(XTMountPoint* mp, const char* name, uint64_t flags) {
     return XT_SUCCESS;
 }
 
+typedef struct win32DirEntry {
+    HANDLE hFile;
+    WIN32_FIND_DATAW findData;
+    int firstCall;
+} win32DirEntry;
+
+XTResult win32OpenDirectory(XTMountPoint* mp, const char* path, XTDirectory* out) {
+    WCHAR wname[260];
+    xtUTF8toUTF16(path, wname);
+    WCHAR* new_wname = wcscat(wname, L"/*");
+    printf("wname %ls\n", new_wname);
+    win32DirEntry* dirEntry = NULL;
+    xtHeapAlloc(sizeof(win32DirEntry), &dirEntry);
+    dirEntry->hFile = FindFirstFileW(new_wname, &dirEntry->findData);
+    dirEntry->firstCall = 1;
+    out->data = dirEntry;
+    return XT_SUCCESS;
+}
+
+XTResult win32ReadDirectory(XTDirectory* dir, XTFileInfo* info) {
+    win32DirEntry* dirEntry = dir->data;
+    if (dirEntry->hFile == NULL) return XT_END_OF_FILE;
+    if (!dirEntry->firstCall) {
+        if (!FindNextFileW(dirEntry->hFile, &dirEntry->findData)) return XT_END_OF_FILE;
+    }
+    else {
+        dirEntry->firstCall = 0;
+    }
+    xtUTF16toUTF8(dirEntry->findData.cFileName, info->name);
+    info->createdTime = nt2unixTime(dirEntry->findData.ftCreationTime);
+    info->lastAccessTime = nt2unixTime(dirEntry->findData.ftLastAccessTime);
+    info->lastWriteTime = nt2unixTime(dirEntry->findData.ftLastWriteTime);
+    info->FileSize = ((uint64_t)dirEntry->findData.nFileSizeHigh << 32) | (dirEntry->findData.nFileSizeLow);
+    info->PhysicalSize = ((info->FileSize >> 12) + 1) << 12;
+    info->flags = (dirEntry->findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) 
+              ? XT_FILE_ATTRIBUTE_DIRECTORY : 0;
+    return XT_SUCCESS;
+}
+
 XTResult win32Mount(XTMountPoint* mp) {
     return XT_SUCCESS;
 }
@@ -133,7 +178,9 @@ XTResult win32Mount(XTMountPoint* mp) {
 XTFileSystemIO win32fsIO = {
     .OpenFile = win32OpenFile,
     .CreateFile = win32CreateFile,
-    .Mount = win32Mount
+    .Mount = win32Mount,
+    .OpenDirectory = win32OpenDirectory,
+    .ReadDirectory = win32ReadDirectory
 };
 
 XTResult win32OpenFile(XTMountPoint* mp, const char* name, uint64_t flags, XTFile** out) {
@@ -162,8 +209,10 @@ XTResult win32OpenFile(XTMountPoint* mp, const char* name, uint64_t flags, XTFil
     else {
         dwCreationDispotition = OPEN_ALWAYS;
     }
-    HANDLE hFile = CreateFileA(
-        name,
+    WCHAR wname[256];
+    xtUTF8toUTF16(name, wname);
+    HANDLE hFile = CreateFileW(
+        wname,
         dwDesiredAccess,
         dwShareMode,
         NULL,

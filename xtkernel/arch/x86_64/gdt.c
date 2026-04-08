@@ -126,6 +126,14 @@ void xtInvalidatePage(void* page) {
     asm volatile("invlpg (%0)" :: "r" (page) : "memory");
 }
 
+typedef struct ExceptionEntry {
+    uint64_t fault_rip;
+    uint64_t fixup;
+} ExceptionEntry;
+
+extern ExceptionEntry __start_ex_table[];
+extern ExceptionEntry __stop_ex_table[];
+
 void xtPageFaultHandler() {
     XTThread* currentThread = NULL;
     xtGetCurrentThread(&currentThread);
@@ -135,6 +143,16 @@ void xtPageFaultHandler() {
     XTContext* ctx = currentThread->context;
     uint64_t errorVM = ctx->cr2;
     XTVirtualMap* mapEntry = NULL;
+
+    if (ctx->cs != 0x2b) {
+        for (ExceptionEntry* e = __start_ex_table; e < __stop_ex_table; e++) {
+            if (e->fault_rip == ctx->rip) {
+                ctx->rip = e->fixup;
+                return;
+            }
+        }
+        xtKernelPanic("Try to access bad memory", NULL, XT_ACCESS_VIOLATION);
+    }
 
     XTResult result = xtFindVirtualMap(
         currentProcess,
@@ -203,6 +221,9 @@ const char* exceptionShortName[] = {
 };
 //bit map of exceptions
 uint32_t exceptionHasError = 0x500227d00;
+
+
+
 void xtExceptionHandler() {
     XTThread* currentThread = NULL;
     xtGetCurrentThread(&currentThread);
@@ -217,10 +238,10 @@ void xtExceptionHandler() {
         return;
     }
     if (ctx->interruptNumber == 0xe) {
-        xtPageFaultHandler();
-        return;
+        return xtPageFaultHandler();
     }
     // Обработка других исключений, например #GP (13) или #DF (8)
+    xtDebugPrint("thread %llx\n", currentThread);
     char buff[64];
     int n = snprintf_(buff, 64, "%s", exceptionShortName[ctx->interruptNumber]);
     if ((exceptionHasError >> ctx->interruptNumber) & 0x1) {

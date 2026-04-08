@@ -18,5 +18,6 @@ XTResult xtMain(XTUserParameters* params) {
     int n = snprintf(buff, 4096, "args[0] %s gs=0x%llx\n", params->argv[0], gs);
     // char* null = NULL;
     // *null = 0;
-    return xtUserWriteFile(XT_STDOUT, buff, 0, n, (void*)0);
+    uint64_t written = 0;
+    return xtUserWriteFile(XT_STDOUT, buff, 0, n, &written);
 }

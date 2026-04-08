@@ -3,6 +3,7 @@
 #include <xt/arch/x86_64.h>
 #include <xt/user.h>
 #include <xt/memory.h>
+#include <xt/kernel.h>
 
 #define EFER_NXE (1 << 11)
 
@@ -10,11 +11,25 @@ extern void xtSyscallHandler();
 
 typedef XTResult(*PFNXTSYSCALLENTRY)();
 
+XTResult xtSyscallWriteFile(
+    uint64_t arg0, 
+    uint64_t arg1, 
+    uint64_t arg2, 
+    uint64_t arg3, 
+    uint64_t* user_stack
+) {
+    uint64_t* arg4 = NULL;
+    xtCopyFromUser(&arg4, &user_stack[5], sizeof(uint64_t*));
+    return xtUserWriteFile(arg0, arg1, arg2, arg3, arg4);
+}
+
 PFNXTSYSCALLENTRY xtSyscallArray[] = {
     xtUserTerminateThread,
-    xtUserWriteFile,
+    xtSyscallWriteFile,
     xtUserReadFile
 };
+
+
 
 XTResult xtWrmsr(uint32_t code, uint64_t value) {
     asm volatile("wrmsr;"::"d"(value >> 32), "a"(value & 0xffffffff), "c"(code));

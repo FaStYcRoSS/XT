@@ -8,6 +8,7 @@
 #include <xt/acpi.h>
 #include <xt/linker.h>
 #include <xt/user.h>
+#include <xt/queue.h>
 
 #if defined(__x86_64__)
 #include <xt/arch/x86_64.h>
@@ -28,14 +29,15 @@ extern void xtSwitchTo();
 
 XTResult xtSchedulerInit();
 
-
 XTResult xtFileSystemInit();
 
 XTResult xtInsertKernelModule();
 
+extern XTList* threads;
+
 void xtKernelMain(KernelBootInfo* bootInfo) {
 
-
+    asm volatile("cli;");
     gKernelBootInfo = bootInfo;
     xtSerialInit();
     xtMemoryInit();
@@ -45,12 +47,8 @@ void xtKernelMain(KernelBootInfo* bootInfo) {
     xtArchInit();
 
     XT_ASSERT(xtSchedulerInit());
-    
+    XT_ASSERT(xtFileSystemInit());
     XT_ASSERT(xtRamDiskInit());
-
-
-
-    uint32_t* framebuffer = bootInfo->framebuffer;
 
     XTProcess* process = NULL;
     XT_ASSERT(xtCreateProcess(
@@ -62,7 +60,7 @@ void xtKernelMain(KernelBootInfo* bootInfo) {
     xtDuplicateHandle(
         process,
         XT_STDOUT,
-        XT_FILE_MODE_READ | XT_FILE_MODE_SHARE | XT_FILE_MODE_WRITE,
+        XT_FILE_MODE_READ | XT_FILE_MODE_WRITE,
         XT_DESCRIPTOR_TYPE_FILE,
         gSerialDevice
     );
@@ -71,8 +69,6 @@ void xtKernelMain(KernelBootInfo* bootInfo) {
         "/initrd/xtinit.xte",
         NULL
     };
-    xtDebugPrint("Hello from kernel!");
-
     xtInsertKernelModule();
     XT_ASSERT(
         xtExecuteProgram(
@@ -81,11 +77,13 @@ void xtKernelMain(KernelBootInfo* bootInfo) {
             NULL
         );
     );
-    void* base = NULL;
-    uint64_t flags = 0;
-    XT_ASSERT(
-        xtLoadKernelModule("/initrd/ahci.xtd", &base)
-    );
+    for (XTList* threadI = threads; threadI; xtGetNextList(threadI, &threadI)) {
+        XTThread* thread = NULL;
+        xtGetListData(threadI, &thread);
+        if (threads == threadI) {
+            xtSetCurrentThread(thread);
+        }
+    }
     xtSwitchTo();
 
     while(1);

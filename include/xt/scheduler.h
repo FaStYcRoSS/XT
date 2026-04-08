@@ -49,6 +49,7 @@ typedef struct XTProcess {
     XTDescriptorTable* descriptorRoot;   // корневая таблица дескрипторов
     uint64_t flags;
     uint64_t activeThreads;               // счётчик живых потоков
+    uint64_t id;
 } XTProcess;
 
 // Новый флаг для приватных страниц (освобождаемых при завершении)

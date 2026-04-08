@@ -56,10 +56,6 @@ XTThread* IdleThread = NULL;
 
 uint64_t ticks = 0;
 
-XTResult XTEXPORT xtGetTime(uint64_t* unixtime) {
-    *unixtime = ticks / 1000;
-}
-
 void xtSchedule() {
     // 1. Сначала будим все потоки, которые пора разбудить
     ++ticks;
@@ -122,4 +118,3 @@ XTResult xtSchedulerInit() {
     XT_TRY(xtCreateThread(&kernelProcess, xtIdleThreadFunction, 0, NULL, XT_THREAD_RUN_STATE, &IdleThread));
     return XT_SUCCESS;
 }
-

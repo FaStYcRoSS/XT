@@ -14,8 +14,7 @@ OBJS = $(patsubst %.c, ../obj/xtkernel/%.o, $(SOURCES)) ../obj/external/printf.o
 	mkdir ..\obj\xtkernel\arch\$(ARCH)
 
 ../efipart/XT/xtkernel.xte: $(OBJS)
-	$(CC) -g $^ \
-	-fvisibility=hidden \
+	$(CC) -g ../obj/start_ex_table.o $^ ../obj/end_ex_table.o \
     -Wall -Wextra -Wpedantic -shared \
     -mno-red-zone -ffreestanding -O3 -nostdlib \
     -Wl,--subsystem,33 \
@@ -31,7 +30,8 @@ OBJS = $(patsubst %.c, ../obj/xtkernel/%.o, $(SOURCES)) ../obj/external/printf.o
 
 ../obj/xtkernel/%.o:%.c
 	$(CC) -c $< -o $@ -I $(UEFI_INCLUDE_DIR) \
-    -I ../include -Wall -Wextra -g \
+	-I ../include -Wall -Wextra -g \
 	-Wpedantic -mno-red-zone \
-	-ffreestanding -O3 \
+	-ffreestanding \
+	-fno-exceptions -fno-unwind-tables -fno-asynchronous-unwind-tables \
 	-nostdlib

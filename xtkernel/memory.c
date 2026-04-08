@@ -126,7 +126,7 @@ XTResult XTEXPORT xtHeapAlloc(uint64_t size, void** out) {
         }
 
     }
-    
+    xtDebugPrint("wants more memory not from heaps!\n");
     void* page_raw = NULL;
     // Выделяем 16КБ (4 страницы по 4КБ)
     uint64_t page_needed_size = 0x4000 ? needed_size < 0x4000 : (((needed_size >> 14) + 1) << 14);

@@ -29,5 +29,5 @@ OBJS = $(patsubst %.c, ../../obj/drivers/vfat/%.o, $(SOURCES))
 	$(CC) -c $< -o $@ -I $(UEFI_INCLUDE_DIR) \
     -I ../../include -Wall -Wextra -g \
 	-Wpedantic -mno-red-zone \
-	-ffreestanding -O3 \
+	-ffreestanding \
 	-nostdlib

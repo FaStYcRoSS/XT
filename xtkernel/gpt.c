@@ -30,10 +30,10 @@ typedef struct GPT_Header {
     uint64_t lastLba;
     EFI_GUID diskGUID;
     uint64_t startPartitions;
-    uint64_t countOfPartitions;
-    uint64_t sizeofPartition;
+    uint32_t countOfPartitions;
+    uint32_t sizeofPartition;
     uint32_t crc32_PartCheckSum;
-} GPT_Header;
+} __attribute__((packed)) GPT_Header;
 
 typedef struct GPT_Partition {
     EFI_GUID PartitionType;
@@ -42,7 +42,7 @@ typedef struct GPT_Partition {
     uint64_t lastLba;
     uint64_t attributes;
     uint16_t Name[36];
-} GPT_Partition;
+} __attribute__((packed)) GPT_Partition;
 
 typedef struct XTPartitionDev {
     GPT_Partition gptPart;
@@ -63,7 +63,7 @@ XTResult xtPartReadFile(XTFile* file, void* data, uint64_t offset, uint64_t coun
 
 XTResult xtPartGetFileInfo(XTFile* file, XTFileInfo* info) {
     XTPartitionDev* partData = file->data;
-    info->FileSize = (partData->gptPart.lastLba - partData->gptPart.firstLba) * 512;
+    info->FileSize = (partData->gptPart.lastLba - partData->gptPart.firstLba + 1) * 512;
     return XT_SUCCESS;
 }
 
@@ -137,7 +137,7 @@ XTResult xtCreatePartitionDevice(
 ) {
     XTPartitionDev* partDev = NULL;
     XT_TRY(xtHeapAlloc(sizeof(XTPartitionDev), &partDev));
-    partDev->gptPart.attributes = 0x1;
+    partDev->gptPart.attributes = 0x0;
     partDev->gptPart.firstLba = first;
     partDev->gptPart.lastLba = last;
     xtCopyMem(partDev->gptPart.Name, name, 36 * sizeof(uint16_t));
@@ -214,12 +214,12 @@ XTResult xtSetPartitions(XTFile* blockdev, XTFile** array, uint64_t count) {
         .magic_code = 0xaa55,
         .partitions = {
             [0] = {
-                .status = 0x80,
+                .status = 0x00,
                 .type = 0xee,
-                .chs_start = {0x00, 0x01, 0x00},
+                .chs_start = {0x00, 0x02, 0x00},
                 .chs_end = chsEnd,
                 .lba_start = 0x1,
-                .lba_size = maxSize
+                .lba_size = -1
             },
         }
     };
@@ -228,23 +228,37 @@ XTResult xtSetPartitions(XTFile* blockdev, XTFile** array, uint64_t count) {
     GPT_Header gptHeader = {
         .signature = "EFI PART",
         .currentLba = 0x1,
-        .firstLba = 0x2,
-        .lastLba = maxSize + 0x1,
-        .backupLba = maxSize + 0x2,
+        .firstLba = 0x22,
+        .lastLba = maxSize - 0x1,
+        .backupLba = maxSize - 0x2,
         .countOfPartitions = 128,
         .diskGUID = new_guid(),
         .crc32_checksum = 0,
         .crc32_PartCheckSum = 0,
+        .sizeofPartition = sizeof(GPT_Partition),
         .revision = 0x00010000,
-        .headerSize = 92
+        .headerSize = 92,
+        .startPartitions = 0x2
     };
+
+
+    GPT_Partition* parts = NULL;
+    xtHeapAlloc(sizeof(GPT_Partition) * 128, &parts);
+    xtSetMem(parts, 0, sizeof(GPT_Partition) * 128);
+    for (uint64_t i = 0; i < count; ++i) {
+        XTPartitionDev* partDev = array[i]->data;
+        EFI_GUID nullGUID = { 0 };
+        if (xtCompareMemory(&partDev->gptPart.uniqueGUID, &nullGUID, sizeof(EFI_GUID)) == XT_SUCCESS) {
+            partDev->gptPart.uniqueGUID = new_guid();
+        }
+        xtCopyMem(parts + i, &partDev->gptPart, sizeof(GPT_Partition));
+    }
+    gptHeader.crc32_PartCheckSum = calculate_crc32(parts, sizeof(GPT_Partition) * 128);
     uint32_t sum = calculate_crc32(&gptHeader, sizeof(GPT_Header));
     gptHeader.crc32_checksum = sum;
     xtWriteFile(blockdev, &gptHeader, 512, sizeof(GPT_Header), &written);
-    for (uint64_t i = 0; i < count; ++i) {
-        XTPartitionDev* partDev = array[i]->data;
-        xtWriteFile(blockdev, &partDev->gptPart, 2 * 512 + i * sizeof(GPT_Partition), sizeof(GPT_Partition), &written);
-    }
+    xtWriteFile(blockdev, parts, 2 * 512, sizeof(GPT_Partition) * 128, &written);
+    xtHeapFree(parts);
     return XT_SUCCESS;
 }
 

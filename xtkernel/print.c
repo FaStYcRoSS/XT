@@ -29,7 +29,7 @@ const char* results[] = {
     "ALREADY_EXISTS",
 };
 
-const char* xtResultToStr(XTResult result) {
+const char* __declspec(dllexport) xtResultToStr(XTResult result) {
     result &= ~XT_ERROR_MASK;
     return results[result];
 }

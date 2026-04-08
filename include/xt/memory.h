@@ -39,7 +39,8 @@ XTResult xtGetPhysicalAddress(void* pageTable, void* virtualAddress, void** out)
 
 XTResult xtMemoryDump();
 
-XTResult xtAccessPtr(void* __XT_USER_PTR__ virtualAddress);
+XTResult xtCopyFromUser(void* kernel_dest, void* __XT_USER_PTR__ user_src, uint64_t size);
+XTResult xtCopyToUser(void* __XT_USER_PTR__ user_dest, void* kernel_src, uint64_t size);
 
 
 #endif

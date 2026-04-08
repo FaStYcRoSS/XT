@@ -32,6 +32,7 @@ typedef signed long long int XTResult;
 #define XT_ARCH_EXCEPTION              XT_ERROR(12)
 #define XT_FILE_ALREADY_EXISTS         XT_ERROR(13)
 #define XT_UNKNOWN_ERROR               XT_ERROR(14)
+#define XT_ACCESS_VIOLATION            XT_ERROR(15)
 
 #define XT_TRY(x) do {XTResult __result = x; if (XT_IS_ERROR(__result)) return __result;} while(0)
 

@@ -5,7 +5,6 @@ global xtDivizionException
 global xtSyscallHandler
 extern xtExceptionHandler
 extern xtSyscallArray
-
 %macro isr_err_stub 1
 global isr_stub_%1
 isr_stub_%1:
@@ -139,6 +138,7 @@ global isr_stub_%1
     iretq
 %endmacro
 
+
 isr_no_err_stub 0
 isr_no_err_stub 1
 isr_no_err_stub 2
@@ -190,7 +190,10 @@ xtSyscallHandler:
     sti
     mov rcx, r10
     lea r10, [rel xtSyscallArray]
+    sub rsp, 40
+    mov [rsp+32], r13
     call [r10+rax*8]
+    add rsp, 40
     cli
     pop r13
     pop r11

@@ -3,6 +3,7 @@
 
 #include <xt/result.h>
 #include <stdint.h>
+#include <xt/io.h>
 
 #define XT_CURRENT_PROCESS ((uint64_t)-1)
 #define XT_CURRENT_THREAD  ((uint64_t)-2)
@@ -61,16 +62,6 @@ XTResult xtUserQueryVirtualMap(
     uint64_t* flags
 );
 
-XTResult xtUserLoadModule(
-    const char* filename,
-    void** base
-);
-
-XTResult xtUserFreeModule(
-    const char* filename,
-    void* base
-);
-
 XTResult xtUserLoadKernelModule(
     const char* filename
 );
@@ -83,6 +74,27 @@ XTResult xtUserGetCurrentDirectory(
 XTResult xtUserSetCurrentDirectory(
     const char* cwd
 ); 
+
+XTResult xtUserOpenDirectory(
+    const char* path,
+    uint64_t* handle
+);
+
+XTResult xtUserReadDirectory(
+    uint64_t handle,
+    XTFileInfo* info
+);
+
+XTResult xtUserCreateThread(
+    uint64_t processHandle,
+    void(*ThreadFunc)(void*), 
+    uint64_t size, 
+    void* arg,
+    uint8_t state, 
+    uint64_t* handle
+);
+
+
 
 XTResult xtUserReadFile(
     uint64_t handleId,

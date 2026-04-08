@@ -27,10 +27,23 @@ XTResult xtCreateQueueNode(void* data, XTQueueNode** out) {
 XTResult xtPopQueue(XTQueue* q, void** data) {
     XT_CHECK_ARG_IS_NULL(q);
     XT_CHECK_ARG_IS_NULL(q->head);
-    XT_CHECK_ARG_IS_NULL(q->tail);
+    // Проверку q->tail можно убрать, так как если head не NULL, то и tail должен быть.
+    
     void* _result = q->head->data;
     XTQueueNode* head = q->head;
+    
     q->head = q->head->next;
+    
+    // Чиним хвост очереди, если она опустела
+    if (q->head == NULL) {
+        q->tail = NULL; 
+    }
+    
+    // Возвращаем данные наружу
+    if (data != NULL) {
+        *data = _result;
+    }
+    
     return xtHeapFree(head);
 }
 
@@ -67,12 +80,20 @@ XTResult xtDestroyQueue(XTQueue* result) {
 }
 
 XTResult xtRemoveFromQueue(XTQueue* q, void* data) {
-    for (XTQueueNode* i = q->head, *prev = NULL; i; prev = NULL, i = i->next) {
+    for (XTQueueNode* i = q->head, *prev = NULL; i != NULL; prev = i, i = i->next) { // <-- Исправлен шаг
         if (i->data == data) {
             if (prev == NULL) {
                 q->head = i->next;
             }
-            else prev->next = i->next;
+            else {
+                prev->next = i->next;
+            }
+            
+            // Если удалили хвост, нужно обновить q->tail
+            if (i->next == NULL) {
+                q->tail = prev;
+            }
+            
             xtHeapFree(i);
             return XT_SUCCESS;
         }   
