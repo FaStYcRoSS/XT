@@ -2,10 +2,11 @@ include ../config.mk
 
 all: ../obj/xtkernel/arch/$(ARCH) ../efipart/XT ../efipart/XT/xtkernel.xte 
 
-ASM_SOURCES = $(wildcard arch/$(ARCH)/*.asm)
+ASM_EXCLUDE = arch/$(ARCH)/start_ex_table.asm arch/$(ARCH)/end_ex_table.asm
+ASM_SOURCES = $(filter-out $(ASM_EXCLUDE), $(wildcard arch/$(ARCH)/*.asm))
 SOURCES = $(wildcard *.c) $(wildcard arch/$(ARCH)/*.c) 
 OBJS = $(patsubst %.c, ../obj/xtkernel/%.o, $(SOURCES)) ../obj/external/printf.o \
-    $(patsubst %.asm, ../obj/xtkernel/%.o, $(ASM_SOURCES))
+    $(patsubst %.asm, ../obj/xtkernel/%.o, $(ASM_SOURCES)) 
 
 ../efipart/XT:
 	mkdir ..\efipart\XT
@@ -14,7 +15,7 @@ OBJS = $(patsubst %.c, ../obj/xtkernel/%.o, $(SOURCES)) ../obj/external/printf.o
 	mkdir ..\obj\xtkernel\arch\$(ARCH)
 
 ../efipart/XT/xtkernel.xte: $(OBJS)
-	$(CC) -g ../obj/start_ex_table.o $^ ../obj/end_ex_table.o \
+	$(CC) -g ../obj/xtkernel/arch/$(ARCH)/start_ex_table.o $^ ../obj/xtkernel/arch/$(ARCH)/end_ex_table.o \
     -Wall -Wextra -Wpedantic -shared \
     -mno-red-zone -ffreestanding -O3 -nostdlib \
     -Wl,--subsystem,33 \

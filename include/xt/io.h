@@ -5,6 +5,10 @@
 #include <xt/list.h>
 #include <stdint.h>
 
+typedef struct XTWaitable {
+    XTList* threads;
+} XTWaitable;
+
 typedef struct XTFile XTFile;
 
 typedef struct XTMountPoint XTMountPoint;
@@ -92,6 +96,7 @@ struct XTFile {
     XTMountPoint* mountPoint;
     XTFileIO* IO;
     void* data;
+    XTWaitable waitable;
 };
 
 typedef struct XTFileDescriptor {

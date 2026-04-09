@@ -35,6 +35,46 @@ XTResult xtInsertKernelModule();
 
 extern XTList* threads;
 
+void waitThread(XTProcess* process) {
+    xtDuplicateHandle(
+        process,
+        XT_STDOUT,
+        XT_FILE_MODE_READ | XT_FILE_MODE_WRITE,
+        XT_DESCRIPTOR_TYPE_FILE,
+        gSerialDevice
+    );
+
+    const char* args[] = {
+        "/initrd/xtinit.xte",
+        NULL
+    };
+    xtInsertKernelModule();
+    XTThread* mainThread = NULL;
+    xtExecuteProgram(
+        process,
+        args,
+        NULL,
+        &mainThread
+    );
+    XTThread* currentThread = NULL;
+    xtGetCurrentThread(&currentThread);
+    XTWaitable* waits[] = {
+        &mainThread->waitable
+    };
+    uint64_t index = 0;
+    XT_ASSERT(xtWaitForMultipleObjects(
+       currentThread,
+       waits,
+       1,
+       &index
+    ));
+    xtDebugPrint("thread result is %llx index is %llx\n", mainThread->result, index);
+    xtTerminateThread(currentThread, XT_SUCCESS);
+    return;
+}
+
+extern XTProcess kernelProcess;
+
 void xtKernelMain(KernelBootInfo* bootInfo) {
 
     asm volatile("cli;");
@@ -56,34 +96,12 @@ void xtKernelMain(KernelBootInfo* bootInfo) {
         0,
         &process
     ));
-
-    xtDuplicateHandle(
-        process,
-        XT_STDOUT,
-        XT_FILE_MODE_READ | XT_FILE_MODE_WRITE,
-        XT_DESCRIPTOR_TYPE_FILE,
-        gSerialDevice
-    );
-
-    const char* args[] = {
-        "/initrd/xtinit.xte",
-        NULL
-    };
-    xtInsertKernelModule();
-    XT_ASSERT(
-        xtExecuteProgram(
-            process,
-            args,
-            NULL
-        );
-    );
-    for (XTList* threadI = threads; threadI; xtGetNextList(threadI, &threadI)) {
-        XTThread* thread = NULL;
-        xtGetListData(threadI, &thread);
-        if (threads == threadI) {
-            xtSetCurrentThread(thread);
-        }
-    }
+    XTThread* waitThreadInstance = NULL;
+    xtCreateThread(&kernelProcess, waitThread, 0, process, XT_THREAD_RUN_STATE, &waitThreadInstance);
+    
+    XTThread* thread = NULL;
+    xtGetListData(threads, &thread);
+    xtSetCurrentThread(thread);
     xtSwitchTo();
 
     while(1);

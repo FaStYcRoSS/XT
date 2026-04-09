@@ -1,0 +1,3 @@
+global __start_ex_table
+section .ex_table
+__start_ex_table:

@@ -7,8 +7,6 @@
 #include <xt/arch/x86_64.h>
 #endif
 
-
-
 XTResult xtSwitchToThread(void);
 
 typedef XTResult(*PFNXTTHREADFUNC)(void);
@@ -105,6 +103,7 @@ XTResult xtFindVirtualMap(
     XTList** prev
 );
 
+
 typedef struct XTThread {
     void* context; //0x0
     XTResult result; //8
@@ -115,6 +114,9 @@ typedef struct XTThread {
     uint64_t ticks; //24
     XTProcess* process;//32
     void* kernelStack; //40
+    XTWaitable waitable;
+    XTWaitable** waits;
+    uint64_t countOfWaits;
 } XTThread;
 
 typedef struct XTPerCPUData {
@@ -130,6 +132,18 @@ typedef struct XTPerCPUData {
 #define XT_THREAD_USER             0x80
 #define XT_PROCESS_TERMINATING     1
 
+XTResult
+xtWaitForMultipleObjects(
+    XTThread* thread,
+    XTWaitable** waits,
+    uint64_t countOfWaits,
+    uint64_t* index
+);
+
+XTResult
+xtWakeUp(
+    XTWaitable* waitable
+);
 
 XTResult 
 xtCreateThread(

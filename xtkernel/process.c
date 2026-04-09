@@ -122,6 +122,11 @@ XTResult xtFindThreadList(XTThread* thread, XTList** out) {
 
 XTResult xtTerminateThread(XTThread* thread, XTResult code) {
     XT_CHECK_ARG_IS_NULL(thread);
+    // Помечаем поток завершённым
+    thread->result = code;
+    xtDebugPrint("%u code %s\n", thread->id, xtResultToStr(code));
+    xtWakeUp(&thread->waitable);
+
     XTThread* currentThread = NULL;
     xtGetCurrentThread(&currentThread);
 
@@ -129,10 +134,6 @@ XTResult xtTerminateThread(XTThread* thread, XTResult code) {
     XTList* threadIter = NULL;
     xtFindThreadList(thread, &threadIter);
     xtRemoveFromList(threads, threadIter);
-
-    // Помечаем поток завершённым
-    thread->state = (thread->state & ~0x7f) | XT_THREAD_TERMINATED_STATE;
-    thread->result = code;
 
     // Уменьшаем счётчик активных потоков процесса
     if (thread->process) {
@@ -146,6 +147,7 @@ XTResult xtTerminateThread(XTThread* thread, XTResult code) {
         }
     }
 
+    thread->state = (thread->state & ~0x7f) | XT_THREAD_TERMINATED_STATE;
     // Если завершаем текущий поток – переключаемся
     if (thread == currentThread) {
         xtSwitchToThread();  // не возвращается
@@ -394,7 +396,6 @@ XTResult XTEXPORT xtCreateThread(
     if (threads == NULL) {
         XT_TRY(xtHeapAlloc(sizeof(XTThread), &result));
         XT_TRY(xtCreateList(result, &threads));
-        xtSetCurrentThread(result);
         currentThreadIterator = threads;
         result->id = 0;
     }

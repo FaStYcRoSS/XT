@@ -542,7 +542,8 @@ XTResult xtPassArgs(
 XTResult xtExecuteProgram(
     XTProcess* process,
     const char** args,
-    const char** envp
+    const char** envp,
+    XTThread** mainThread
 ) {
     XTResult result = 0;
     PFNXTUserMain main = NULL;
@@ -576,6 +577,9 @@ XTResult xtExecuteProgram(
         XT_THREAD_USER | XT_THREAD_RUN_STATE,
         &thread
     ));
+    if (mainThread) {
+        *mainThread = thread;
+    }
     return XT_SUCCESS;
 }
 

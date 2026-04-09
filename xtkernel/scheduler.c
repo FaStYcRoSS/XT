@@ -28,12 +28,96 @@ XTResult xtSleepThread(
     return XT_SUCCESS;
 }
 
-XTResult xtWakeUpThread(XTThread* thread) {
 
-    thread->state = XT_THREAD_RUN_STATE;
-    thread->ticks = thread->privilage * 10;
+XTResult xtFindThread(XTThread* thread, XTList* l, XTList** out) {
+    XT_CHECK_ARG_IS_NULL(thread);
+    XT_CHECK_ARG_IS_NULL(out);
+
+    for (XTList* i = l; i; xtGetNextList(i, &i)) {
+        XTThread* threadi = NULL;
+        xtGetListData(i, &threadi);
+        if (threadi == thread) {
+            *out = i;
+            return XT_SUCCESS;
+        }
+    }
+    return XT_NOT_FOUND;
+
+}
+
+
+XTResult xtSetResult(
+    XTThread* thread,
+    uint64_t result
+);
+
+XTResult
+xtWaitForMultipleObjects(
+    XTThread* thread,
+    XTWaitable** waits,
+    uint64_t countOfWaits,
+    uint64_t* index
+) {
+
+    thread->waits = waits;
+    thread->countOfWaits = countOfWaits;
+    for (uint64_t i = 0; i < countOfWaits; ++i) {
+        XTList* newThreadList = NULL;
+        XT_TRY(xtCreateList(thread, &newThreadList));
+        if (waits[i]->threads == NULL) {
+            waits[i]->threads = newThreadList;
+        }
+        else {
+            XT_TRY(xtAppendList(waits[i]->threads, newThreadList));
+        }
+    }
+    thread->state = (thread->state & 0x80) | XT_THREAD_WAIT_STATE;
+    XTResult result = xtSwitchToThread();
+    *index = result;
+    // for (uint64_t i = 0; i < countOfWaits; ++i) {
+    //     XTList* threadList = NULL;
+    //     xtFindThread(thread, waits[i]->threads, &threadList);
+    //     if (waits[i]->threads == threadList) {
+    //         xtDestroyList(threadList);
+    //         waits[i]->threads = NULL;
+    //     }
+    //     else {
+    //         xtRemoveFromList(waits[i]->threads, threadList);
+    //     }
+    // }
+    thread->waits = NULL;
+    thread->countOfWaits = 0;
     return XT_SUCCESS;
+}
 
+XTResult
+xtWakeUp(
+    XTWaitable* waitable
+) {
+    for (XTList* i = waitable->threads; i; ) {
+        XTThread* thread = NULL;
+        xtGetListData(i, &thread);
+        for (uint64_t j = 0; j < thread->countOfWaits; ++j) {
+            if (thread->waits[j] == waitable) {
+                xtSetResult(thread, j);
+            }
+        }
+        thread->state = (thread->state & 0x80) | XT_THREAD_RUN_STATE;
+        XTList* prev = i;
+        xtGetNextList(i, &i);
+        // xtRemoveFromList(waitable->threads, prev);
+    }
+    // xtDestroyList(waitable->threads);
+    waitable->threads = NULL;
+    return XT_SUCCESS;
+}
+
+XTResult XTEXPORT xtGetTime(uint64_t* unixtime) {
+
+}
+
+XTResult XTEXPORT xtSetTime(uint64_t unixtime) {
+    
 }
 
 XTResult xtWakeUpThreads() {
@@ -43,7 +127,8 @@ XTResult xtWakeUpThreads() {
         if (thread->state == XT_THREAD_SLEEP_STATE) {
             thread->ticks -= 10;
             if (thread->ticks == 0) {
-                xtWakeUpThread(thread);
+                thread->state = (thread->state & 0x80) | XT_THREAD_RUN_STATE;
+                thread->ticks = thread->privilage;
             }
         }
     }

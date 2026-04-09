@@ -27,6 +27,15 @@ XTResult xtSetCurrentThread(XTThread* thread) {
     return XT_SUCCESS;
 }
 
+XTResult xtSetResult(
+    XTThread* thread,
+    uint64_t result
+) {
+    XTContext* ctx = (XTContext*)thread->context;
+    ctx->rax = result;
+    return XT_SUCCESS;
+}
+
 XTResult xtSetContext(
     XTProcess* process, 
     void* kernelStack,

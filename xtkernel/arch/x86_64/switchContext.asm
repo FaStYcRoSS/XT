@@ -208,7 +208,7 @@ xtSyscallHandler:
 
 
 xtSwitchToThread:
-    int 0x20
+    halt
     ret
 
 xtSwitchTo:
