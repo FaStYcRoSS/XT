@@ -9,6 +9,7 @@
 #include <xt/linker.h>
 #include <xt/user.h>
 #include <xt/queue.h>
+#include <xt/string.h>
 
 #if defined(__x86_64__)
 #include <xt/arch/x86_64.h>
@@ -25,8 +26,6 @@ KernelBootInfo* gKernelBootInfo = NULL;
 
 #define KERNEL_IMAGE_BASE ((void*)(0xffffffff80000000))
 
-extern void xtSwitchTo();
-
 XTResult xtSchedulerInit();
 
 XTResult xtFileSystemInit();
@@ -35,76 +34,71 @@ XTResult xtInsertKernelModule();
 
 extern XTList* threads;
 
-void waitThread(XTProcess* process) {
-    xtDuplicateHandle(
-        process,
-        XT_STDOUT,
-        XT_FILE_MODE_READ | XT_FILE_MODE_WRITE,
-        XT_DESCRIPTOR_TYPE_FILE,
-        gSerialDevice
-    );
+// void waitThread(XTProcess* process) {
+//     xtDuplicateHandle(
+//         process,
+//         XT_STDOUT,
+//         XT_FILE_MODE_READ | XT_FILE_MODE_WRITE,
+//         XT_DESCRIPTOR_TYPE_FILE,
+//         gSerialDevice
+//     );
 
-    const char* args[] = {
-        "/initrd/xtinit.xte",
-        NULL
-    };
-    xtInsertKernelModule();
-    XTThread* mainThread = NULL;
-    xtExecuteProgram(
-        process,
-        args,
-        NULL,
-        &mainThread
-    );
-    XTThread* currentThread = NULL;
-    xtGetCurrentThread(&currentThread);
-    XTWaitable* waits[] = {
-        &mainThread->waitable
-    };
-    uint64_t index = 0;
-    XT_ASSERT(xtWaitForMultipleObjects(
-       currentThread,
-       waits,
-       1,
-       &index
-    ));
-    xtDebugPrint("thread result is %llx index is %llx\n", mainThread->result, index);
-    xtTerminateThread(currentThread, XT_SUCCESS);
-    return;
-}
+//     const char* args[] = {
+//         "/initrd/xtinit.xte",
+//         NULL
+//     };
+
+//     XTThread* mainThread = NULL;
+//     xtExecuteProgram(
+//         process,
+//         args,
+//         NULL,
+//         &mainThread
+//     );
+//     XTThread* currentThread = NULL;
+//     xtGetCurrentThread(&currentThread);
+//     XTWaitable* waits[] = {
+//         &mainThread->waitable
+//     };
+//     uint64_t index = 0;
+//     XT_ASSERT(xtWaitForMultipleObjects(
+//        currentThread,
+//        waits,
+//        1,
+//        &index
+//     ));
+//     xtDebugPrint("thread result is %llx index is %llx\n", mainThread->result, index);
+//     xtTerminateThread(currentThread, XT_SUCCESS);
+//     return;
+// }
 
 extern XTProcess kernelProcess;
 
-void xtKernelMain(KernelBootInfo* bootInfo) {
+void Thread(void* arg) {
+    while (1) {
+        xtDebugPrint("thread %llx\n", arg);
+        xtSchedule();
+    }
 
+}
+
+
+void xtKernelMain(KernelBootInfo* bootInfo) {
     asm volatile("cli;");
     gKernelBootInfo = bootInfo;
     xtSerialInit();
     xtMemoryInit();
-
     XT_ASSERT(xtACPIInit());
-
     xtArchInit();
+    xtInsertKernelModule();
 
-    XT_ASSERT(xtSchedulerInit());
-    XT_ASSERT(xtFileSystemInit());
-    XT_ASSERT(xtRamDiskInit());
-
-    XTProcess* process = NULL;
-    XT_ASSERT(xtCreateProcess(
+    XTThread* firstThread = NULL, *secondThread = NULL;
+    xtCreateThread(
         NULL,
-        0,
-        &process
-    ));
-    XTThread* waitThreadInstance = NULL;
-    xtCreateThread(&kernelProcess, waitThread, 0, process, XT_THREAD_RUN_STATE, &waitThreadInstance);
+        Thread, 0, (void*)1, XT_THREAD_RUN_STATE, &firstThread);
+    xtCreateThread(NULL,
+        Thread, 0, (void*)2, XT_THREAD_RUN_STATE, &secondThread);
     
-    XTThread* thread = NULL;
-    xtGetListData(threads, &thread);
-    xtSetCurrentThread(thread);
-    xtSwitchTo();
-
-    while(1);
-    return;
-
+    xtStartScheduler();   // вместо Thread1();
+    while(1);             // никогда не выполнится
 }

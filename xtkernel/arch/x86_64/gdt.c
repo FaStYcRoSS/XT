@@ -106,7 +106,7 @@ void xtHalt() {
 void xtRegDump() {
     XTThread* currentThread = NULL;
     xtGetCurrentThread(&currentThread);
-    XTContext* context = currentThread->context;
+    XTInterruptableContext* context = currentThread->kernel_stack;
     
     for (uint64_t i = 0; i < sizeof(registers)/sizeof(*registers);++i) {
         xtDebugPrint("% 6s=0x%016llx ", registers[i], ((uint64_t*)context)[i]);
@@ -118,7 +118,7 @@ void xtRegDump() {
 
 void xtSendEOI();
 
-void xtSchedule();
+void _xtSchedule();
 
 int returned = 0;
 
@@ -140,7 +140,7 @@ void xtPageFaultHandler() {
     XTProcess* currentProcess = NULL;
     xtGetCurrentProcess(&currentProcess);
     XTList* prev = NULL;
-    XTContext* ctx = currentThread->context;
+    XTInterruptableContext* ctx = currentThread->kernel_stack;
     uint64_t errorVM = ctx->cr2;
     XTVirtualMap* mapEntry = NULL;
 
@@ -227,13 +227,13 @@ uint32_t exceptionHasError = 0x500227d00;
 void xtExceptionHandler() {
     XTThread* currentThread = NULL;
     xtGetCurrentThread(&currentThread);
-    XTContext* ctx = currentThread->context;
+    XTInterruptableContext* ctx = currentThread->kernel_stack;
 
     if (ctx->interruptNumber == 0x20) {
         asm volatile("cli");
         xtSchedule();
         xtGetCurrentThread(&currentThread);
-        tss.rsp0 = currentThread->kernelStack;
+        tss.rsp0 = currentThread->kernel_stack;
         xtSendEOI();
         return;
     }
@@ -365,7 +365,7 @@ XTResult xtDTInit() {
     uint16_t tssSegment = 0x6*8;
     asm volatile("lgdt %0" : : "m"(_gdtr));
 
-    xtPITInit();
+    //xtPITInit();
     xtSetIRQs();
 
 

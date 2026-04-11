@@ -18,7 +18,7 @@ XTResult xtGetCurrentProcess(XTProcess** out) {
     XT_CHECK_ARG_IS_NULL(out);
     XTThread* currentThread = 0;
     asm volatile("movq %%gs:0, %%rax":"=a"(currentThread));
-    *out = currentThread->process;
+    *out = currentThread->parentProcess;
     return XT_SUCCESS;
 }
 
@@ -31,10 +31,12 @@ XTResult xtSetResult(
     XTThread* thread,
     uint64_t result
 ) {
-    XTContext* ctx = (XTContext*)thread->context;
+    XTInterruptableContext* ctx = (XTInterruptableContext*)thread->kernel_stack;
     ctx->rax = result;
     return XT_SUCCESS;
 }
+
+void xtSwitchToIRETQ();
 
 XTResult xtSetContext(
     XTProcess* process, 
@@ -53,10 +55,10 @@ XTResult xtSetContext(
     userExitPtr = (USER_SIZE_MAX) + ((uint64_t)userExitPtr & 0xfff);
     *ret = userExitPtr;
 
-    XTContext* ctx = (XTContext*)((char*)kernelStack + 0x4000 - sizeof(XTContext));
-
+    XTInterruptableContext* ctx = (XTInterruptableContext*)((char*)kernelStack + 0x4000 - sizeof(XTInterruptableContext));
+    ctx->rip = xtSwitchToIRETQ;
     // Инициализируем "сохраненное" состояние
-    ctx->rip = function;                    // Прерывания разрешены (IF=1)
+    ctx->thread_rip = function;                    // Прерывания разрешены (IF=1)
     ctx->rflags = 0x202;
     ctx->rcx = arg;
     if (flags & XT_THREAD_USER) {

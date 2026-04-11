@@ -105,29 +105,27 @@ XTResult xtFindVirtualMap(
 
 
 typedef struct XTThread {
-    void* context; //0x0
-    XTResult result; //8
-    uint32_t id; //16
-    uint8_t state; //20
-    uint8_t privilage; //21
-    uint16_t flags; //22
-    uint64_t ticks; //24
-    XTProcess* process;//32
-    void* kernelStack; //40
-    XTWaitable waitable;
-    XTWaitable** waits;
-    uint64_t countOfWaits;
+    void* kernel_stack;
+    XTProcess* parentProcess;
+    struct XTThread* nextInQueue;
+    uint32_t id;
+    uint32_t ticks;
+    uint8_t flags;
+    uint8_t priority;
 } XTThread;
 
 typedef struct XTPerCPUData {
     XTThread* currentThread;
+    XTThread* headRunThread;
+    XTThread* tailRunThread;
 } XTPerCPUData;
 
-#define XT_THREAD_SLEEP_STATE      0
-#define XT_THREAD_RUN_STATE        1
-#define XT_THREAD_LOADED_STATE     2
-#define XT_THREAD_TERMINATED_STATE 3
-#define XT_THREAD_WAIT_STATE       4
+#define XT_THREAD_SLEEP_STATE         0
+#define XT_THREAD_RUN_STATE           1
+#define XT_THREAD_LOADED_STATE        2
+#define XT_THREAD_TERMINATED_STATE    3
+#define XT_THREAD_WAIT_STATE          4
+#define XT_THREAD_INTERRUPTABLE_STATE 5
 
 #define XT_THREAD_USER             0x80
 #define XT_PROCESS_TERMINATING     1
