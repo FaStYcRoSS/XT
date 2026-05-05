@@ -1,8 +1,10 @@
 #ifndef __XT_SCHEDULER_H__
 #define __XT_SCHEDULER_H__
 
+#include <xt/result.h>
 #include <xt/list.h>
 #include <xt/io.h>
+#include <xt/spinlock.h>
 #ifdef __x86_64__
 #include <xt/arch/x86_64.h>
 #endif
@@ -78,7 +80,7 @@ XTResult xtDuplicateHandle(
 XTResult xtGetHandle(
     XTProcess* process,
     uint64_t handle,
-    XTDescriptor** out
+    struct XTDescriptor** out
 );
 
 
@@ -115,6 +117,8 @@ typedef struct XTThread {
     uint64_t ticks; //24
     XTProcess* process;//32
     void* kernelStack; //40
+    XTList* waitThreads;
+    XTSpinlock lock;
 } XTThread;
 
 typedef struct XTPerCPUData {
@@ -130,6 +134,11 @@ typedef struct XTPerCPUData {
 #define XT_THREAD_USER             0x80
 #define XT_PROCESS_TERMINATING     1
 
+XTResult
+xtWaitForThread(
+    XTThread* thread,
+    XTResult* result
+);
 
 XTResult 
 xtCreateThread(

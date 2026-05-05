@@ -3,6 +3,7 @@
 #include <xt/memory.h>
 #include <xt/kernel.h>
 #include <xt/string.h>
+#include <xt/sharedPtr.h>
 
 XTResult XTEXPORT xtWriteFile(XTFile* file, const void* data, uint64_t offset, uint64_t size, uint64_t* written) {
     XT_CHECK_ARG_IS_NULL(file);
@@ -14,9 +15,10 @@ XTResult XTEXPORT xtWriteFile(XTFile* file, const void* data, uint64_t offset, u
     if (written == NULL) {
         written = &tempWritten;
     }
-
-    return file->IO->WriteFile(file, data, offset, size, written);
-
+    XT_TRY(xtLockFile(file, XT_LOCK_WRITE));
+    XTResult result = file->IO->WriteFile(file, data, offset, size, written);
+    xtUnlockFile(file, XT_LOCK_WRITE);
+    return result;
 }
 
 XTResult XTEXPORT xtGetFileInfo(XTFile* file, XTFileInfo* info) {
@@ -115,6 +117,88 @@ XTResult xtFindPathNode(const char* path, XTPathNode** node, char** left) {
 
 }
 
+XTResult xtNormalizePath(const char* path, char* buffer, uint64_t buffsize) {
+    XT_CHECK_ARG_IS_NULL(path);
+    XT_CHECK_ARG_IS_NULL(buffer);
+    if (buffsize == 0) return XT_INVALID_PARAMETER;
+
+    // Абсолютный путь должен начинаться с '/' или '\'
+    if (*path != '/' && *path != '\\')
+        return XT_INVALID_PARAMETER;
+
+    // Начинаем с корневого слеша
+    buffer[0] = '/';
+    buffer[1] = '\0';
+    uint64_t len = 1; // текущая длина нормализованного пути (без завершающего нуля)
+
+    while (*path) {
+        // Пропускаем все разделители (и прямые, и обратные)
+        while (*path == '/' || *path == '\\')
+            ++path;
+        if (*path == '\0')
+            break; // завершающие разделители игнорируем
+
+        // Извлекаем очередной компонент (до следующего разделителя или конца)
+        char name[256];
+        uint64_t comp_len = 0;
+        while (*path && *path != '/' && *path != '\\' && comp_len < sizeof(name) - 1) {
+            name[comp_len++] = *path++;
+        }
+        name[comp_len] = '\0';
+
+        // Пустой компонент (два слеша подряд) – пропускаем
+        if (comp_len == 0)
+            continue;
+
+        // Обрабатываем "." – ничего не делаем
+        if (xtStringICmp(name, ".", 4096) == 0)
+            continue;
+
+        // Обрабатываем ".." – поднимаемся на уровень выше
+        if (xtStringICmp(name, "..", 4096) == 0) {
+            if (len > 1) {
+                // Ищем последний слеш в текущем нормализованном пути
+                uint64_t pos = len - 1;
+                while (pos > 0 && buffer[pos] != '/')
+                    --pos;
+                if (pos == 0) {
+                    // Корень – обрезаем до одного слеша
+                    buffer[1] = '\0';
+                    len = 1;
+                } else {
+                    // Обрезаем строку после найденного слеша
+                    buffer[pos] = '\0';
+                    len = pos;
+                }
+            }
+            // Если уже в корне – ничего не делаем
+            continue;
+        }
+
+        // Обычный компонент – добавляем в буфер
+        // Если это не первый компонент (len > 1), ставим перед ним слеш
+        if (len > 1) {
+            if (len + 1 >= buffsize)
+                return XT_OUT_OF_BOUNDARY; // недостаточно места
+            buffer[len++] = '/';
+        }
+        // Копируем имя компонента
+        if (len + comp_len >= buffsize)
+            return XT_OUT_OF_BOUNDARY;
+        for (uint64_t i = 0; i < comp_len; ++i)
+            buffer[len++] = name[i];
+        buffer[len] = '\0';
+    }
+
+    // Убираем завершающий слеш (кроме корня)
+    if (len > 1 && buffer[len - 1] == '/') {
+        buffer[len - 1] = '\0';
+        len--;
+    }
+
+    return XT_SUCCESS;
+}
+
 XTResult xtCreatePathNode(const char* name, XTMountPoint* mp, XTPathNode** out) {
     XT_CHECK_ARG_IS_NULL(name);
     XTPathNode* node = NULL;
@@ -144,18 +228,44 @@ XTMountPoint rootMP = {
     .fs = NULL
 };
 
+XTSpinlock openedFilesLock;
+XTList* openedFiles = NULL;
+
+typedef struct XTOpenedFileEntry {
+    char path[4096];
+    XTFile* file;
+} XTOpenedFileEntry;
+
 XTResult xtFileSystemInit() {
     //Create root
+    xtInitSpinlock(&openedFilesLock);
     return xtCreatePathNode("", &rootMP, &root);
 }
+
 
 XTResult XTEXPORT xtOpenFile(const char* path, uint64_t flags, XTFile** out) {
     XT_CHECK_ARG_IS_NULL(path);
     XT_CHECK_ARG_IS_NULL(out);
     XTPathNode* pathNode = NULL;
     char* left = NULL;
-    XT_TRY(xtFindPathNode(path, &pathNode, &left));
-if (pathNode == NULL) {
+    char buff[4096];
+    XT_TRY(xtNormalizePath(path, buff, 4096));
+    xtLockSpinlock(&openedFilesLock);
+    for (XTList* i = openedFiles; i; xtGetNextList(i, &i)) {
+        XTSharedPtr* sharedPtr = NULL;
+        xtGetListData(i, &sharedPtr);
+        XTOpenedFileEntry* openedFileEntry = NULL;
+        xtSharedPtrGetData(sharedPtr, &openedFileEntry);
+        if (xtStringICmp(buff, openedFileEntry->path, 4096) == XT_SUCCESS) {
+            xtIncrementReference(sharedPtr);
+            *out = openedFileEntry->file;
+            xtUnlockSpinlock(&openedFilesLock);
+            return XT_SUCCESS;
+        }
+    }
+    xtUnlockSpinlock(&openedFilesLock);
+    XT_TRY(xtFindPathNode(buff, &pathNode, &left));
+    if (pathNode == NULL) {
         xtDebugPrint("XT_ERROR: pathNode is NULL\n");
         return XT_NOT_IMPLEMENTED;
     }
@@ -184,9 +294,67 @@ if (pathNode == NULL) {
         pathNode->mp->fs->IO->CreateFile(pathNode->mp, left, flags & ~(XT_FILE_MODE_CREATE));
     }
 
-    return pathNode->mp->fs->IO->OpenFile(pathNode->mp, left, flags & ~(XT_FILE_MODE_CREATE), out);
+    XTResult result = pathNode->mp->fs->IO->OpenFile(pathNode->mp, left, flags & ~(XT_FILE_MODE_CREATE), out);
+    if (XT_IS_ERROR(result)) return result;
+    xtInitRWLock(&(*out)->lock);
+    (*out)->flags = flags & ~(XT_FILE_MODE_CREATE);
+    XTOpenedFileEntry *fileEntry = NULL;
+    xtHeapAlloc(sizeof(XTOpenedFileEntry), &fileEntry);
+    xtCopyString(fileEntry->path, buff, 4096);
+    fileEntry->file = (*out);
+    XTSharedPtr *sharedPtr = NULL;
+    xtCreateSharedPtr(fileEntry, &sharedPtr, NULL);
+    XTList* fileEntryList = NULL;
+    xtCreateList(sharedPtr, &fileEntryList);
+    xtLockSpinlock(&openedFilesLock);
+    if (openedFiles == NULL) {
+        openedFiles = fileEntryList;
+    }
+    else {
+        xtAppendList(openedFiles, fileEntryList);
+    }
+    xtUnlockSpinlock(&openedFilesLock);
+    return result;
 }
 
+
+XTResult XTEXPORT xtLockFile(XTFile* file, uint64_t lockType) {
+    XT_CHECK_ARG_IS_NULL(file);
+
+    XTRWLock* lock = &file->lock;
+    if (lock == NULL) return XT_NOT_IMPLEMENTED;
+
+    // Неблокирующий режим: проверяем без ожидания
+    if (file->flags & XT_FILE_MODE_NONBLOCK) {
+        xtLockSpinlock(&lock->spinlock);
+        int canLock = (lockType == XT_LOCK_READ)
+            ? (lock->readers >= 0 && lock->waitWriters == NULL)
+            : (lock->readers == 0);
+        xtUnlockSpinlock(&lock->spinlock);
+        if (!canLock) return XT_WOULD_BLOCK;  // аналог EWOULDBLOCK
+    }
+
+    if (lockType == XT_LOCK_READ) {
+        return xtAcquireRead(lock);
+    } else if (lockType == XT_LOCK_WRITE) {
+        return xtAcquireWrite(lock);
+    }
+    return XT_INVALID_PARAMETER;
+}
+
+XTResult XTEXPORT xtUnlockFile(XTFile* file, uint64_t lockType) {
+    XT_CHECK_ARG_IS_NULL(file);
+
+    XTRWLock* lock = &file->lock;
+    if (lock == NULL) return XT_NOT_IMPLEMENTED;
+
+    if (lockType == XT_LOCK_READ) {
+        return xtReleaseRead(lock);
+    } else if (lockType == XT_LOCK_WRITE) {
+        return xtReleaseWrite(lock);
+    }
+    return XT_INVALID_PARAMETER;
+}
 
 XTResult XTEXPORT xtOpenDirectory(const char* path, XTDirectory** out) {
     XT_CHECK_ARG_IS_NULL(path);
@@ -336,7 +504,10 @@ XTResult XTEXPORT xtReadFile(XTFile* file, void* data, uint64_t offset, uint64_t
         read = &tempRead;
     }
 
-    return file->IO->ReadFile(file, data, offset, size, read);
+    //XT_TRY(xtLockFile(file, XT_LOCK_READ));
+    XTResult result = file->IO->ReadFile(file, data, offset, size, read);
+    //xtUnlockFile(file, XT_LOCK_READ);
+    return result;
 }
 
 XTResult XTEXPORT xtMapFile(XTFile* file, uint64_t offset, uint64_t* size, void** out) {

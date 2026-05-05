@@ -4,6 +4,7 @@
 #include <xt/scheduler.h>
 #include <xt/kernel.h>
 #include "../../../external/printf.h"
+#include <stdatomic.h>
 
 // Стандартный дескриптор (8 байт)
 typedef struct {
@@ -101,6 +102,20 @@ const char* registers[] = {
 
 void xtHalt() {
     asm volatile("hlt;");
+}
+
+void xtPause() {
+    asm volatile("pause;");
+}
+
+extern int bKernelWasInitialised;
+
+void xtClearInterrupts() {
+    asm volatile("cli");
+}
+void xtSetInterrupts() {
+    if (bKernelWasInitialised)
+        asm volatile("sti");
 }
 
 void xtRegDump() {
@@ -241,7 +256,7 @@ void xtExceptionHandler() {
         return xtPageFaultHandler();
     }
     // Обработка других исключений, например #GP (13) или #DF (8)
-    xtDebugPrint("thread %llx\n", currentThread);
+    xtDebugPrint("thread %x\n", currentThread->id);
     char buff[64];
     int n = snprintf_(buff, 64, "%s", exceptionShortName[ctx->interruptNumber]);
     if ((exceptionHasError >> ctx->interruptNumber) & 0x1) {

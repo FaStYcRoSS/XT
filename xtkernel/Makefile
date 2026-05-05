@@ -14,7 +14,7 @@ OBJS = $(patsubst %.c, ../obj/xtkernel/%.o, $(SOURCES)) ../obj/external/printf.o
 	mkdir ..\obj\xtkernel\arch\$(ARCH)
 
 ../efipart/XT/xtkernel.xte: $(OBJS)
-	$(CC) -g ../obj/start_ex_table.o $^ ../obj/end_ex_table.o \
+	$(CC) -g ../obj/xtkernel/arch/$(ARCH)/start_ex_table.o $^ ../obj/xtkernel/arch/$(ARCH)/end_ex_table.o \
     -Wall -Wextra -Wpedantic -shared \
     -mno-red-zone -ffreestanding -O3 -nostdlib \
     -Wl,--subsystem,33 \

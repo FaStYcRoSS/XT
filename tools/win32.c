@@ -42,15 +42,45 @@ XTResult xtGetRandomU64(uint64_t* random) {
 #define EPOCH_DIFFERENCE 11644473600ULL
 
 uint64_t nt2unixTime(FILETIME ft) {
-    return (*(uint64_t*)&ft / TICKS_PER_SECOND) - EPOCH_DIFFERENCE;
+    uint64_t ntTime = ((uint64_t)ft.dwHighDateTime << 32) | (ft.dwLowDateTime);
+    return (ntTime / TICKS_PER_SECOND) - EPOCH_DIFFERENCE;
 } 
 
-XTResult xtGetTime(uint64_t* unixtime) {
-    *unixtime = _time64(NULL);
+XTResult xtInitSpinlock(XTSpinlock* lock) {
     return XT_SUCCESS;
 }
 
-XTResult xtSetTime(uint64_t unixtime) {
+XTResult xtLockSpinlock(XTSpinlock* lock) {
+    return XT_SUCCESS;
+}
+
+XTResult xtUnlockSpinlock(XTSpinlock* lock) {
+    return XT_SUCCESS;
+}
+
+XTResult xtInitRWLock(XTRWLock* lock) {
+    return XT_SUCCESS;
+}
+XTResult xtAcquireRead(XTRWLock* lock) {
+    return XT_SUCCESS;
+}
+XTResult xtReleaseRead(XTRWLock* lock) {
+    return XT_SUCCESS;
+}
+XTResult xtAcquireWrite(XTRWLock* lock) {
+    return XT_SUCCESS;
+}
+XTResult xtReleaseWrite(XTRWLock* lock) {
+    return XT_SUCCESS;
+}
+
+XTResult xtGetTime(uint64_t* unixtime, uint64_t* nanoseconds) {
+    *unixtime = _time64(NULL);
+    *nanoseconds = 0;
+    return XT_SUCCESS;
+}
+
+XTResult xtSetTime(uint64_t unixtime, uint64_t nanoseconds) {
     return XT_NOT_IMPLEMENTED;
 }
 
@@ -142,7 +172,6 @@ XTResult win32OpenDirectory(XTMountPoint* mp, const char* path, XTDirectory* out
     WCHAR wname[260];
     xtUTF8toUTF16(path, wname);
     WCHAR* new_wname = wcscat(wname, L"/*");
-    printf("wname %ls\n", new_wname);
     win32DirEntry* dirEntry = NULL;
     xtHeapAlloc(sizeof(win32DirEntry), &dirEntry);
     dirEntry->hFile = FindFirstFileW(new_wname, &dirEntry->findData);

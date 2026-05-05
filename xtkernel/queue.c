@@ -1,5 +1,6 @@
 #include <xt/queue.h>
 #include <xt/memory.h>
+#include <xt/spinlock.h>
 
 typedef struct XTQueueNode {
     void* data;
@@ -9,6 +10,7 @@ typedef struct XTQueueNode {
 struct XTQueue {
     XTQueueNode* head;
     XTQueueNode* tail;
+    XTSpinlock* lock;
 };
 
 

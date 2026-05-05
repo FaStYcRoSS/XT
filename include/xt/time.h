@@ -17,7 +17,7 @@ typedef struct XTTime {
 
 XTResult xtMakeTime(XTTime* time, uint64_t* unixtime);
 XTResult xtGetTimeFromUnix(uint64_t unixtime, XTTime* time);
-XTResult xtGetTime(uint64_t* unixtime);
-XTResult xtSetTime(uint64_t unixtime);
+XTResult xtGetTime(uint64_t* unixtime, uint64_t* nanoseconds);
+XTResult xtSetTime(uint64_t unixtime, uint64_t nanoseconds);
 
 #endif

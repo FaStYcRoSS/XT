@@ -29,7 +29,8 @@ XTResult xtLoadKernelModule(
 XTResult xtExecuteProgram(
     XTProcess* process,
     const char** args,
-    const char** evnp
+    const char** evnp,
+    XTThread** mainThread
 );
 
 #endif

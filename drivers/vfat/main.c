@@ -227,7 +227,8 @@ XTResult vfatWriteFile(XTFile* file, const void* data, uint64_t offset, uint64_t
                 sfn.file_size = (offset + bytes_written);
             }
             uint64_t current_time = 0;
-            xtGetTime(&current_time);
+            uint64_t current_time_nanoseconds = 0;
+            xtGetTime(&current_time, &current_time_nanoseconds);
             XTTime tm = { 0 };
             xtGetTimeFromUnix(current_time, &tm);
             sfn.last_modifided_time = _create_time(tm.hour, tm.minutes, tm.seconds);
@@ -754,7 +755,8 @@ XTResult vfatCreateFile(XTMountPoint* mp, const char* name, uint64_t flags) {
     if (flags & XT_FILE_ATTRIBUTE_DIRECTORY) attr |= SUBDIR;
 
     uint64_t current_time = 0;
-    xtGetTime(&current_time);
+    uint64_t current_time_nanoseconds = 0;
+    xtGetTime(&current_time, &current_time_nanoseconds);
     XTTime time = { 0 };
     xtGetTimeFromUnix(current_time, &time);
     uint16_t dosdate = _create_date(time.year - 1980, time.month, time.mday);
@@ -775,8 +777,8 @@ XTResult vfatCreateFile(XTMountPoint* mp, const char* name, uint64_t flags) {
     _dirData->index = newIndex;
     XTFileInfo info = { 0 };
     info.createdTime = current_time;
-    info.lastAccessTime = 0;
-    info.lastWriteTime = 0;
+    info.lastAccessTime = current_time;
+    info.lastWriteTime = current_time;
     info.FileSize = 0;
     info.PhysicalSize = 0;
     info.flags = flags;

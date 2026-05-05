@@ -4,6 +4,7 @@
 #include <xt/result.h>
 #include <xt/list.h>
 #include <stdint.h>
+#include <xt/rwlock.h>
 
 typedef struct XTFile XTFile;
 
@@ -88,10 +89,14 @@ typedef struct XTMountPoint {
     void* data;
 } XTMountPoint;
 
+typedef struct XTThread XTThread;
+
 struct XTFile {
     XTMountPoint* mountPoint;
     XTFileIO* IO;
     void* data;
+    uint64_t flags;
+    XTRWLock lock;
 };
 
 typedef struct XTFileDescriptor {
@@ -113,7 +118,9 @@ typedef struct XTDescriptor {
 #define XT_FILE_SHARE_DELETE        0x10
 #define XT_FILE_SHARE_READ          0x20
 #define XT_FILE_SHARE_WRITE         0x40
-
+#define XT_FILE_MODE_NONBLOCK       0x80
+#define XT_LOCK_READ                0x01
+#define XT_LOCK_WRITE               0x02
 
 XTResult xtWriteFile(XTFile* file, const void* data, uint64_t offset, uint64_t size, uint64_t* written);
 XTResult xtReadFile(XTFile* file, void* data, uint64_t offset, uint64_t size, uint64_t* read);
@@ -128,6 +135,8 @@ XTResult xtSetFileInfo(XTFile* file, XTFileInfo* info);
 XTResult xtCopyFile(const char* source, const char* dest);
 XTResult xtMoveFile(const char* path1, const char* path2);
 XTResult xtDeleteFile(const char* path);
+XTResult xtLockFile(XTFile* file, uint64_t lockType);
+XTResult xtUnlockFile(XTFile* file, uint64_t lockType);
 
 XTResult xtMapFile(XTFile* file, uint64_t offset, uint64_t* size, void** out);
 XTResult xtUnmapFile(XTFile* file, uint64_t offset, void* ptr, uint64_t size);
@@ -138,6 +147,12 @@ XTResult xtFlushBuffers(XTFile* file);
 
 XTResult xtRegisterFileSystem(XTFileSystem* fs);
 XTResult xtMakeFS(XTFile* file, const char* filesystem);
+
+XTResult xtCreatePipe(
+    XTFile** write,
+    XTFile** read,
+    uint64_t sizeOfBuffer
+);
 
 extern XTFile* gSerialDevice;
 

@@ -122,17 +122,25 @@ XTResult xtFindThreadList(XTThread* thread, XTList** out) {
 
 XTResult xtTerminateThread(XTThread* thread, XTResult code) {
     XT_CHECK_ARG_IS_NULL(thread);
+    xtLockSpinlock(&thread->lock);
     XTThread* currentThread = NULL;
     xtGetCurrentThread(&currentThread);
 
-    // Удаляем поток из глобального списка планировщика
-    XTList* threadIter = NULL;
-    xtFindThreadList(thread, &threadIter);
-    xtRemoveFromList(threads, threadIter);
-
+    thread->result = code;
     // Помечаем поток завершённым
     thread->state = (thread->state & ~0x7f) | XT_THREAD_TERMINATED_STATE;
-    thread->result = code;
+    for (
+        XTList* waitThreadList = thread->waitThreads; 
+        waitThreadList; 
+        xtGetNextList(waitThreadList, &waitThreadList)
+    ) {
+        XTThread* waitThread = NULL;
+        xtGetListData(waitThreadList, &waitThread);
+        waitThread->state = (waitThread->state & 0x80) | XT_THREAD_RUN_STATE;
+    }
+    xtUnlockSpinlock(&thread->lock);
+
+
 
     // Уменьшаем счётчик активных потоков процесса
     if (thread->process) {
@@ -332,7 +340,39 @@ XTResult xtAllocateUserStack(
 }
 
 
-
+XTResult
+xtWaitForThread(
+    XTThread* thread,
+    XTResult* result
+) {
+    XT_CHECK_ARG_IS_NULL(thread);
+    XT_CHECK_ARG_IS_NULL(result);
+    xtLockSpinlock(&thread->lock);
+    if ((thread->state & 0x7f) == XT_THREAD_TERMINATED_STATE) {
+        *result = thread->result;
+        xtUnlockSpinlock(&thread->lock);
+        return XT_SUCCESS;
+    }
+    XTThread* currentThread = NULL;
+    xtGetCurrentThread(&currentThread);
+    XTList* currentList = NULL;
+    XT_TRY(xtCreateList(currentThread, &currentList));
+    if (thread->waitThreads) {
+        xtAppendList(thread->waitThreads, currentList);
+    }
+    else {
+        thread->waitThreads = currentList;
+    }
+    xtLockSpinlock(&currentThread->lock);
+    currentThread->state = (currentThread->state & 0x80) | XT_THREAD_WAIT_STATE;
+    xtUnlockSpinlock(&thread->lock);
+    xtUnlockSpinlock(&currentThread->lock);
+    xtSwitchToThread();
+    *result = thread->result;
+    xtRemoveFromList(thread->waitThreads, currentList);
+    xtDestroyList(currentList);
+    return XT_SUCCESS;
+}
 
 XTResult XTEXPORT xtCreateThread(
     XTProcess* process, 
@@ -419,9 +459,11 @@ XTResult XTEXPORT xtCreateThread(
     result->context = ctx;
     result->result = 0;
     result->state = state;
-    result->privilage = 1;
-    result->ticks = 1;
+    result->privilage = 20;
+    result->ticks = 20;
     result->kernelStack = kernelStack+0x4000;
+    result->waitThreads = NULL;
+    xtInitSpinlock(&result->lock);
     XTList* threadList = NULL;
     XT_TRY(xtCreateList(result, &threadList));
     if (process->threads == NULL) {

@@ -3,12 +3,14 @@
 
 #include <xt/result.h>
 #include <stdint.h>
+#include <stdatomic.h>
 
-typedef struct XTSpinlock XTSpinlock;
+typedef struct XTSpinlock {
+    atomic_flag isBusy;
+} XTSpinlock;
 
-XTResult xtCreateSpinlock(void* data, XTSpinlock** out);
-XTResult xtDestroySpinlock(XTSpinlock* lock);
-XTResult xtSpinlockGet(XTSpinlock* lock, void** out);
-XTResult xtSpinlockSet(XTSpinlock* lock, void* out);
+XTResult xtInitSpinlock(XTSpinlock* lock);
+XTResult xtLockSpinlock(XTSpinlock* lock);
+XTResult xtUnlockSpinlock(XTSpinlock* lock);
 
 #endif

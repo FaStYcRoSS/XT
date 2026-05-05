@@ -21,7 +21,8 @@ XTFileIO SerialIO = {
 
 XTFile _gSerialDevice = {
     .data = NULL,
-    .IO = &SerialIO
+    .IO = &SerialIO,
+    .flags = XT_FILE_MODE_NONBLOCK
 };
 
 XTResult xtSerialInit() {

@@ -30,8 +30,8 @@ XTResult xtSleepThread(
 
 XTResult xtWakeUpThread(XTThread* thread) {
 
-    thread->state = XT_THREAD_RUN_STATE;
-    thread->ticks = thread->privilage * 10;
+    thread->state = (thread->state & 0x7f) | XT_THREAD_RUN_STATE;
+    thread->ticks = thread->privilage;
     return XT_SUCCESS;
 
 }
@@ -41,7 +41,7 @@ XTResult xtWakeUpThreads() {
         XTThread* thread = NULL;
         xtGetListData(i, &thread);
         if (thread->state == XT_THREAD_SLEEP_STATE) {
-            thread->ticks -= 10;
+            thread->ticks -= 1;
             if (thread->ticks == 0) {
                 xtWakeUpThread(thread);
             }
@@ -54,11 +54,9 @@ void xtRegDump();
 
 XTThread* IdleThread = NULL;
 
-uint64_t ticks = 0;
-
 void xtSchedule() {
     // 1. Сначала будим все потоки, которые пора разбудить
-    ++ticks;
+
     xtWakeUpThreads();
     XTThread* currentThread = NULL;
     xtGetCurrentThread(&currentThread);
