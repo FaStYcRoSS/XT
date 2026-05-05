@@ -159,7 +159,7 @@ void xtPageFaultHandler() {
     uint64_t errorVM = ctx->cr2;
     XTVirtualMap* mapEntry = NULL;
 
-    if (ctx->cs != 0x2b) {
+    if ((ctx->cs & 0x3) == 0) {
         for (ExceptionEntry* e = __start_ex_table; e < __stop_ex_table; e++) {
             if (e->fault_rip == ctx->rip) {
                 ctx->rip = e->fixup;
@@ -176,10 +176,10 @@ void xtPageFaultHandler() {
         &prev
     );
     if (result == XT_NOT_FOUND) {
-        xtTerminateThread(currentThread, XT_ACCESS_DENIED);
+        xtTerminateThread(currentThread, XT_ACCESS_VIOLATION);
     }
     if ((ctx->errorCode & 0x2) && !(mapEntry->attr & XT_MEM_WRITE)) {
-        xtTerminateThread(currentThread, XT_ACCESS_DENIED);
+        xtTerminateThread(currentThread, XT_ACCESS_VIOLATION);
     }
 
     void* newPage = NULL;

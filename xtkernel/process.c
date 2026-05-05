@@ -29,7 +29,7 @@ static void xtFreeDescriptorTree(void* node, int level) {
 
 int64_t sign_ext(int64_t value, uint64_t bits) {
     /* generate the sign bit mask. 'b' is the extracted number of bits */
-    int64_t m = 1U << (bits - 1);  
+    int64_t m = 1Ull << (bits - 1);  
 
     /* Transform a 'b' bits unsigned number 'x' into a signed number 'r' */
     return ((value ^ m) - m); 
@@ -45,21 +45,74 @@ static void** xtResolveHandle(XTProcess* process, uint64_t handle, int create) {
 
     XTDescriptorTable** current = &process->descriptorRoot;
 
-    // Проходим уровни от верхнего (HANDLE_LEVELS-1) до первого (1)
     for (int level = HANDLE_LEVELS - 1; level > 0; level--) {
         if (*current == NULL) {
             if (!create) return NULL;
             XTDescriptorTable* newTable = NULL;
             if (xtHeapAlloc(sizeof(XTDescriptorTable), (void**)&newTable) != XT_SUCCESS)
                 return NULL;
-            xtMemSet(newTable, 0, sizeof(XTDescriptorTable));
+            xtSetMem(newTable, 0, sizeof(XTDescriptorTable));
             *current = newTable;
         }
         current = (XTDescriptorTable**)&((*current)->entries[indices[level]]);
     }
 
-    // Теперь current указывает на запись в таблице последнего уровня (L0)
-    return (void**)current;
+    // Теперь обрабатываем последний уровень (L0) явно
+    if (*current == NULL) {
+        if (!create) return NULL;
+        XTDescriptorTable* newTable = NULL;
+        if (xtHeapAlloc(sizeof(XTDescriptorTable), (void**)&newTable) != XT_SUCCESS)
+            return NULL;
+        xtSetMem(newTable, 0, sizeof(XTDescriptorTable));
+        *current = newTable;
+    }
+    return (void**)&((*current)->entries[indices[0]]);
+}
+
+static uint64_t find_free_recursive(XTDescriptorTable* table, int level, uint64_t prefix) {
+    // Если таблица отсутствует, все handle с данным префиксом свободны.
+    // Возвращаем наименьший: prefix, дополненный нулями для оставшихся уровней.
+    if (table == NULL) {
+        uint64_t remaining = HANDLE_LEVELS - level;
+        return prefix << (remaining * HANDLE_LEVEL_BITS);
+    }
+
+    // Последний уровень (L0) – ищем первый NULL в entries.
+    if (level == HANDLE_LEVELS - 1) {
+        for (uint64_t i = 0; i < (1ULL << HANDLE_LEVEL_BITS); i++) {
+            if (table->entries[i] == NULL) {
+                return (prefix << HANDLE_LEVEL_BITS) | i;
+            }
+        }
+        return -1; // В этой таблице нет свободных слотов
+    }
+
+    // Промежуточный уровень – сначала рекурсивно обходим существующие подтаблицы,
+    // а при первом же отсутствующем слоте возвращаем свободный handle.
+    for (uint64_t i = 0; i < (1ULL << HANDLE_LEVEL_BITS); i++) {
+        if (table->entries[i] == NULL) {
+            // Слот пуст → вся подветвь свободна. Берём наименьший handle из неё.
+            uint64_t new_prefix = (prefix << HANDLE_LEVEL_BITS) | i;
+            uint64_t remaining = HANDLE_LEVELS - level - 1;
+            return new_prefix << (remaining * HANDLE_LEVEL_BITS);
+        } else {
+            uint64_t result = find_free_recursive(
+                (XTDescriptorTable*)table->entries[i],
+                level + 1,
+                (prefix << HANDLE_LEVEL_BITS) | i
+            );
+            if (result != 0) return result;
+        }
+    }
+    return -1; // Свободных handle нет во всей ветке
+}
+
+XTResult xtFindFreeHandle(XTProcess* process, uint64_t* freeHandle) {
+    if (process == NULL) return XT_INVALID_PARAMETER;
+    uint64_t result = find_free_recursive(process->descriptorRoot, 0, 0);
+    if (result == -1) return XT_NOT_FOUND;
+    *freeHandle = result;
+    return XT_SUCCESS;
 }
 
 XTResult xtGetHandle(XTProcess* process, uint64_t handle, XTDescriptor** out) {
@@ -82,7 +135,7 @@ XTResult xtDuplicateHandle(XTProcess* process, uint64_t handle,
     XT_CHECK_ARG_IS_NULL(process);
     void** entry = xtResolveHandle(process, handle, 1);
     if (!entry) return XT_OUT_OF_MEMORY;
-    if (*entry != NULL) return XT_FILE_ALREADY_EXISTS;  // или разрешить перезапись
+    //if (*entry != NULL) return XT_FILE_ALREADY_EXISTS;  // или разрешить перезапись
 
     XTDescriptor* newDesc = NULL;
     XT_TRY(xtHeapAlloc(sizeof(XTDescriptor), (void**)&newDesc));
@@ -276,12 +329,12 @@ XTResult xtCreateProcess(
 
     XTProcess* result = NULL;
     XT_TRY(xtHeapAlloc(sizeof(XTProcess), &result));
-
     void* newPageTable = NULL;
     XT_TRY(xtAllocatePages(NULL, 0x1000, &newPageTable));
-    xtSetMem(newPageTable, 0, 0x1000);
-    xtCopyMem((char*)newPageTable + 0x7f8, (char*)kernelPageTable + 0x7f8, 0x808);
-    
+    void* vnewPageTable = HIGHER_HALF_MEM(newPageTable);
+    void* vkernelPageTable = HIGHER_HALF_MEM(kernelPageTable);
+    xtSetMem(vnewPageTable, 0, 0x1000);
+    xtCopyMem((char*)vnewPageTable + 0x7f8, (char*)vkernelPageTable + 0x7f8, 0x808);
     result->pageTable = newPageTable;
     result->parentProcess = parentProcess;
     result->id = lastProcessId++;
@@ -294,7 +347,6 @@ XTResult xtCreateProcess(
         xtAppendList(processess, newProcessList);
     }
     *out = result;
-    
     return XT_SUCCESS;
 
 }

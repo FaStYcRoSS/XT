@@ -29,7 +29,6 @@ XTResult xtPowerOff() {
     if (fadt->X_PM1aControlBlock.Address != 0) {
         write_to_gas(&fadt->X_PM1aControlBlock, value);
     } else if (fadt->PM1aControlBlock) {
-        xtDebugPrint("gas->address 0x%x value 0x%x", fadt->PM1aControlBlock, value);
         xtOutW(fadt->PM1aControlBlock, value);
     }
 

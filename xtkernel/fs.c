@@ -242,6 +242,42 @@ XTResult xtFileSystemInit() {
     return xtCreatePathNode("", &rootMP, &root);
 }
 
+XTResult xtFindFile(const char* path, XTFile** out) {
+    xtLockSpinlock(&openedFilesLock);
+    for (XTList* i = openedFiles; i; xtGetNextList(i, &i)) {
+        XTSharedPtr* sharedPtr = NULL;
+        xtGetListData(i, &sharedPtr);
+        XTOpenedFileEntry* openedFileEntry = NULL;
+        xtSharedPtrGetData(sharedPtr, &openedFileEntry);
+        if (xtStringICmp(path, openedFileEntry->path, 4096) == XT_SUCCESS) {
+            xtIncrementReference(sharedPtr);
+            *out = openedFileEntry->file;
+            xtUnlockSpinlock(&openedFilesLock);
+            return XT_SUCCESS;
+        }
+    }
+    xtUnlockSpinlock(&openedFilesLock);
+    return XT_NOT_FOUND;
+}
+
+XTResult xtAppendFile(const char* path, XTFile* file) {
+    XTOpenedFileEntry *fileEntry = NULL;
+    xtHeapAlloc(sizeof(XTOpenedFileEntry), &fileEntry);
+    xtCopyString(fileEntry->path, path, 4096);
+    fileEntry->file = file;
+    XTSharedPtr *sharedPtr = NULL;
+    xtCreateSharedPtr(fileEntry, &sharedPtr, NULL);
+    XTList* fileEntryList = NULL;
+    xtCreateList(sharedPtr, &fileEntryList);
+    xtLockSpinlock(&openedFilesLock);
+    if (openedFiles == NULL) {
+        openedFiles = fileEntryList;
+    }
+    else {
+        xtAppendList(openedFiles, fileEntryList);
+    }
+    xtUnlockSpinlock(&openedFilesLock);
+}
 
 XTResult XTEXPORT xtOpenFile(const char* path, uint64_t flags, XTFile** out) {
     XT_CHECK_ARG_IS_NULL(path);
@@ -250,20 +286,8 @@ XTResult XTEXPORT xtOpenFile(const char* path, uint64_t flags, XTFile** out) {
     char* left = NULL;
     char buff[4096];
     XT_TRY(xtNormalizePath(path, buff, 4096));
-    xtLockSpinlock(&openedFilesLock);
-    for (XTList* i = openedFiles; i; xtGetNextList(i, &i)) {
-        XTSharedPtr* sharedPtr = NULL;
-        xtGetListData(i, &sharedPtr);
-        XTOpenedFileEntry* openedFileEntry = NULL;
-        xtSharedPtrGetData(sharedPtr, &openedFileEntry);
-        if (xtStringICmp(buff, openedFileEntry->path, 4096) == XT_SUCCESS) {
-            xtIncrementReference(sharedPtr);
-            *out = openedFileEntry->file;
-            xtUnlockSpinlock(&openedFilesLock);
-            return XT_SUCCESS;
-        }
-    }
-    xtUnlockSpinlock(&openedFilesLock);
+    XTResult result = xtFindFile(buff, out);
+    if (result == XT_SUCCESS) return XT_SUCCESS;
     XT_TRY(xtFindPathNode(buff, &pathNode, &left));
     if (pathNode == NULL) {
         xtDebugPrint("XT_ERROR: pathNode is NULL\n");
@@ -294,26 +318,11 @@ XTResult XTEXPORT xtOpenFile(const char* path, uint64_t flags, XTFile** out) {
         pathNode->mp->fs->IO->CreateFile(pathNode->mp, left, flags & ~(XT_FILE_MODE_CREATE));
     }
 
-    XTResult result = pathNode->mp->fs->IO->OpenFile(pathNode->mp, left, flags & ~(XT_FILE_MODE_CREATE), out);
+    result = pathNode->mp->fs->IO->OpenFile(pathNode->mp, left, flags & ~(XT_FILE_MODE_CREATE), out);
     if (XT_IS_ERROR(result)) return result;
     xtInitRWLock(&(*out)->lock);
     (*out)->flags = flags & ~(XT_FILE_MODE_CREATE);
-    XTOpenedFileEntry *fileEntry = NULL;
-    xtHeapAlloc(sizeof(XTOpenedFileEntry), &fileEntry);
-    xtCopyString(fileEntry->path, buff, 4096);
-    fileEntry->file = (*out);
-    XTSharedPtr *sharedPtr = NULL;
-    xtCreateSharedPtr(fileEntry, &sharedPtr, NULL);
-    XTList* fileEntryList = NULL;
-    xtCreateList(sharedPtr, &fileEntryList);
-    xtLockSpinlock(&openedFilesLock);
-    if (openedFiles == NULL) {
-        openedFiles = fileEntryList;
-    }
-    else {
-        xtAppendList(openedFiles, fileEntryList);
-    }
-    xtUnlockSpinlock(&openedFilesLock);
+    xtAppendFile(buff, *out);
     return result;
 }
 
@@ -529,4 +538,39 @@ XTResult XTEXPORT xtUnmapFile(XTFile* file, uint64_t offset, void* ptr, uint64_t
     if (file->IO == NULL) return XT_NOT_IMPLEMENTED;
     if (file->IO->UnmapFile == NULL) return XT_NOT_IMPLEMENTED;
     return file->IO->UnmapFile(file, offset, ptr, size);
+}
+
+XTResult XTEXPORT xtDeleteFile(const char* path) {
+    XTPathNode* pathNode = NULL;
+    char* left = NULL;
+    char buff[4096];
+    XT_TRY(xtNormalizePath(path, buff, 4096));
+    XTFile* file = NULL;
+    XTResult result = xtFindFile(buff, &file);
+    if (result == XT_SUCCESS) {
+        if (!(file->flags & XT_FILE_SHARE_DELETE)) return XT_ACCESS_DENIED;
+    }
+    XT_TRY(xtFindPathNode(buff, &pathNode, &left));
+    if (pathNode == NULL) {
+        xtDebugPrint("XT_ERROR: pathNode is NULL\n");
+        return XT_NOT_IMPLEMENTED;
+    }
+    if (pathNode->mp == NULL) {
+        xtDebugPrint("XT_ERROR: pathNode->mp is NULL (MountPoint not found)\n");
+        return XT_NOT_IMPLEMENTED;
+    }
+    if (pathNode->mp->fs == NULL) {
+        xtDebugPrint("XT_ERROR: pathNode->mp->fs is NULL (FileSystem not initialized)\n");
+        return XT_NOT_IMPLEMENTED;
+    }
+    if (pathNode->mp->fs->IO == NULL) {
+        xtDebugPrint("XT_ERROR: pathNode->mp->fs->IO is NULL (IO Operations table missing)\n");
+        return XT_NOT_IMPLEMENTED;
+    }
+    if (pathNode->mp->fs->IO->DeleteFile == NULL) {
+        xtDebugPrint("XT_ERROR: pathNode->mp->fs->IO->OpenFile is NULL\n");
+        return XT_NOT_IMPLEMENTED;
+    }
+    result = pathNode->mp->fs->IO->DeleteFile(pathNode->mp, left);
+    return result;
 }

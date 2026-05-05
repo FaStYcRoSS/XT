@@ -52,6 +52,23 @@ XTResult waitThread(void* arg) {
         gSerialDevice
     );
 
+    xtDuplicateHandle(
+        process,
+        XT_STDIN,
+        XT_FILE_MODE_READ,
+        XT_DESCRIPTOR_TYPE_FILE,
+        gSerialDevice
+    );
+
+
+    xtDuplicateHandle(
+        process,
+        XT_STDERR,
+        XT_FILE_MODE_WRITE,
+        XT_DESCRIPTOR_TYPE_FILE,
+        gSerialDevice
+    );
+
     const char* args[] = {
         "/initrd/xtinit.xte",
         NULL
@@ -68,7 +85,8 @@ XTResult waitThread(void* arg) {
     );
     XTResult result = NULL;
     xtWaitForThread(mainThread, &result);
-    xtDebugPrint("result is %s\n", xtResultToStr(result));
+    xtDebugPrint("result is 0x%llx\n", result);
+    xtShutdown(XT_SHUTDOWN_POWER_OFF);
     //xtSwitchToThread();
     XTThread* currentThread = NULL;
     xtGetCurrentThread(&currentThread);

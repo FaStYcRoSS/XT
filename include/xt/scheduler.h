@@ -181,7 +181,6 @@ XTResult xtCreateProcess(
     XTProcess** out
 );
 
-
 #define XT_SHUTDOWN_POWER_OFF 0
 #define XT_SHUTDOWN_REBOOT    1
 

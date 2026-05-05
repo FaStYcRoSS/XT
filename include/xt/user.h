@@ -31,6 +31,25 @@ XTResult xtUserWriteFile(
     uint64_t* written
 );
 
+XTResult xtUserExecuteProgram(
+    uint64_t processHandle,
+    const char** args,
+    const char** envp,
+    uint64_t* mainThread
+);
+
+XTResult xtUserCreateProcess(
+    uint64_t parentProcessHandle,
+    uint64_t flags,
+    uint64_t* newProcessHandle
+);
+
+XTResult xtUserDuplicateHandle(
+    uint64_t handle,
+    uint64_t processHandle,
+    uint64_t toSetHandle
+);
+
 XTResult xtUserTerminateThread(
     uint64_t handleId,
     uint64_t code
@@ -62,7 +81,7 @@ XTResult xtUserQueryVirtualMap(
     uint64_t* flags
 );
 
-XTResult xtUserLoadKernelModule(
+XTResult xtUserInsertKernelModule(
     const char* filename
 );
 
@@ -94,7 +113,11 @@ XTResult xtUserCreateThread(
     uint64_t* handle
 );
 
-
+XTResult xtUserCreatePipe(
+    uint64_t* writeHandleId,
+    uint64_t* readHandleId,
+    uint64_t bufferSize
+);
 
 XTResult xtUserReadFile(
     uint64_t handleId,
@@ -102,6 +125,10 @@ XTResult xtUserReadFile(
     uint64_t offset,
     uint64_t count,
     uint64_t* read
+);
+
+XTResult xtUserCloseHandle(
+    uint64_t handle
 );
 
 

@@ -48,6 +48,7 @@ typedef XTResult(*PFNXTMAPFILE)(XTFile* file, uint64_t offset, uint64_t* size, v
 typedef XTResult(*PFNXTUNMAPFILE)(XTFile* file, uint64_t offset, void* ptr, uint64_t size);
 typedef XTResult(*PFNXTOPENDIRECTORY)(XTMountPoint* mp, const char* name, XTDirectory* out);
 typedef XTResult(*PFNXTREADDIRECTORY)(XTDirectory* dir, XTFileInfo* fileInfo);
+typedef XTResult(*PFNXTDELETEFILE)(XTMountPoint* mp, const char* name);
 typedef XTResult(*PFNXTOPENFILE)(XTMountPoint* mp, const char* name, uint64_t flags, XTFile** out);
 typedef XTResult(*PFNXTCREATEFILE)(XTMountPoint* mp, const char* name, uint64_t flags);
 typedef XTResult(*PFNXTCLOSEFILE)(XTMountPoint* mp, XTFile* file);
@@ -65,6 +66,7 @@ typedef struct XTFileSystemIO {
     PFNXTMOUNT         Mount;
     PFNXTUNMOUNT       Unmount;
     PFNXTMAKEFILESYSTEM MakeFS;
+    PFNXTDELETEFILE    DeleteFile;
 } XTFileSystemIO;
 
 typedef struct XTFileIO {
@@ -152,6 +154,11 @@ XTResult xtCreatePipe(
     XTFile** write,
     XTFile** read,
     uint64_t sizeOfBuffer
+);
+
+XTResult xtCreateNamedPipe(
+    const char* path,
+    uint64_t bufferSize
 );
 
 extern XTFile* gSerialDevice;

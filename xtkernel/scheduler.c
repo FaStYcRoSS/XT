@@ -28,10 +28,24 @@ XTResult xtSleepThread(
     return XT_SUCCESS;
 }
 
-XTResult xtWakeUpThread(XTThread* thread) {
+XTResult xtWaitThread(XTThread* thread) {
+    xtLockSpinlock(&thread->lock);
+    thread->state = (thread->state & 0x7f) | XT_THREAD_WAIT_STATE;
+    thread->ticks = thread->privilage;
+    xtUnlockSpinlock(&thread->lock);
+    XTThread* currentThread = NULL;
+    xtGetCurrentThread(&currentThread);
+    if (currentThread == thread) {
+        xtSwitchToThread();
+    }
+    return XT_SUCCESS;
+}
 
+XTResult xtWakeUpThread(XTThread* thread) {
+    xtLockSpinlock(&thread->lock);
     thread->state = (thread->state & 0x7f) | XT_THREAD_RUN_STATE;
     thread->ticks = thread->privilage;
+    xtUnlockSpinlock(&thread->lock);
     return XT_SUCCESS;
 
 }
@@ -100,7 +114,9 @@ void xtSchedule() {
 void xtHalt();
 
 void xtIdleThreadFunction() {
-    while(1) xtHalt();
+    while(1) {
+        xtHalt();
+    }
 }
 
 extern void* kernelPageTable;

@@ -861,6 +861,38 @@ XTResult vfatOpenFile(XTMountPoint* mp, const char* name, uint64_t flags, XTFile
     return XT_SUCCESS;
 }
 
+XTResult vfatDeleteFile(XTMountPoint* mp, const char* path) {
+    char* left = NULL;
+    XTFile* parentDir = NULL;
+    vfatFindFile(mp, path, &left, &parentDir);
+    vfatFileData* data = parentDir->data;
+    uint32_t parentCluster = data->firstCluster;
+    sfn_dir_entry sfn;
+    // Читаем данные файла по найденному индексу
+    xtReadFile(parentDir, &sfn, data->index * sizeof(sfn_dir_entry), sizeof(sfn_dir_entry), NULL);
+    sfn.name[0] = 0xe5;
+    xtWriteFile(parentDir, &sfn, data->index * sizeof(sfn_dir_entry), sizeof(sfn_dir_entry), NULL);
+    uint32_t firstCluster = sfn.firstClusterLow | (uint32_t)sfn.firstClusterHigh << 16;
+    sfn_dir_entry temp_sfn = { 0 };
+    int lfnCount = 0;
+    uint8_t order = 0;
+    do {
+        xtReadFile(parentDir, &temp_sfn, (data->index - lfnCount - 1) * sizeof(sfn_dir_entry), sizeof(sfn_dir_entry), NULL);
+        order = temp_sfn.name[0];
+        if (temp_sfn.attributes == 0xf) {
+            temp_sfn.name[0] = 0xe5;
+            xtWriteFile(parentDir, &temp_sfn, (data->index - lfnCount - 1) * sizeof(sfn_dir_entry), sizeof(sfn_dir_entry), NULL);
+            ++lfnCount;
+        }
+    } while(temp_sfn.attributes == 0xf && !(order & ORed));
+    do {
+        firstCluster = get_next_cluster(mp, firstCluster);
+        set_next_cluster(mp, firstCluster, 0);
+    } while (firstCluster != EOC);
+    xtHeapFree(data);
+    xtHeapFree(parentDir);
+    return XT_SUCCESS;
+}
 
 XTResult vfatOpenDirectory(XTMountPoint* mp, const char* path, XTDirectory* out) {
     char* left = NULL;
