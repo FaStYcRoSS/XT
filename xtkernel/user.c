@@ -179,6 +179,10 @@ XTResult xtUserCreateProcess(
     return XT_SUCCESS;
 }
 
+XTResult xtUserCloseHandle(uint64_t handle) {
+    
+}
+
 XTResult xtUserExecuteProgram(
     uint64_t processHandle,
     const char** args,

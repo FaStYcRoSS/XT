@@ -3,8 +3,6 @@ global xtSwitchToThread
 global xtSwitchTo
 global xtDivizionException
 global xtSyscallHandler
-global xtBeginThread
-global xtSwitchToIRETQ
 extern xtExceptionHandler
 extern xtSyscallArray
 %macro isr_err_stub 1
@@ -206,7 +204,19 @@ xtSyscallHandler:
     swapgs
     o64 sysret
 
-xtSwitchToIRETQ:
+
+
+
+xtSwitchToThread:
+    int 0x20
+    ret
+
+xtSwitchTo:
+    mov rax, [gs:0]
+    mov rsp, [rax]
+    mov rax, [rax+32]
+    mov rax, [rax+0x8]
+    mov cr3, rax
     pop rax
     pop rax
     pop rbx
@@ -229,8 +239,3 @@ xtSwitchToIRETQ:
     swapgs
 .no_swapgs_out:
     iretq
-
-xtSwitchTo:    
-    mov [rcx], rsp
-    mov rsp, [rdx]
-    ret

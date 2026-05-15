@@ -18,23 +18,18 @@ XTResult xtInL(uint16_t port, uint32_t* data);
 
 #include <stdint.h>
 
-typedef struct XTInterruptableContext {
-    // Состояние, которое мы пушим вручную
-    uint64_t rip;
+typedef struct XTContext {
+    // РЎРѕСЃС‚РѕСЏРЅРёРµ, РєРѕС‚РѕСЂРѕРµ РјС‹ РїСѓС€РёРј РІСЂСѓС‡РЅСѓСЋ
     uint64_t cr2;
     uint64_t rax, rbx, rcx, rdx, rbp, rsi, rdi, r8, 
                 r9, r10, r11, r12, r13, r14, r15;
     uint64_t interruptNumber;
     uint64_t errorCode;
-    uint64_t thread_rip;
+    uint64_t rip;
     uint64_t cs;
     uint64_t rflags;
-    uint64_t rsp; // Указатель стека (пользовательский!)
+    uint64_t rsp; // РЈРєР°Р·Р°С‚РµР»СЊ СЃС‚РµРєР° (РїРѕР»СЊР·РѕРІР°С‚РµР»СЊСЃРєРёР№!)
     uint64_t ss;
-} XTInterruptableContext;
-
-typedef struct XTSwitchedContext {
-    uint64_t rip;
-} XTSwitchedContext;
+} XTContext;
 
 #endif

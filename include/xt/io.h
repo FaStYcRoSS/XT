@@ -101,13 +101,9 @@ struct XTFile {
     XTMountPoint* mountPoint;
     XTFileIO* IO;
     void* data;
-<<<<<<< HEAD
-    XTWaitable waitable;
-=======
     uint64_t flags;
     XTRWLock lock;
     XTEvent* event;
->>>>>>> feature/test
 };
 
 typedef struct XTDescriptor {

@@ -14,7 +14,7 @@ static void xtFreeDescriptorTree(void* node, int level) {
     if (!node) return;
     if (level == 0) {
         XTDescriptor* desc = (XTDescriptor*)node;
-        // При необходимости здесь можно вызвать деструктор объекта desc->desc
+        // РџСЂРё РЅРµРѕР±С…РѕРґРёРјРѕСЃС‚Рё Р·РґРµСЃСЊ РјРѕР¶РЅРѕ РІС‹Р·РІР°С‚СЊ РґРµСЃС‚СЂСѓРєС‚РѕСЂ РѕР±СЉРµРєС‚Р° desc->desc
         xtHeapFree(desc);
     } else {
         XTDescriptorTable* table = (XTDescriptorTable*)node;
@@ -37,7 +37,7 @@ int64_t sign_ext(int64_t value, uint64_t bits) {
 static void** xtResolveHandle(XTProcess* process, uint64_t handle, int create) {
     if (!process) return NULL;
 
-    // Извлекаем индексы для каждого уровня (от старших бит к младшим)
+    // РР·РІР»РµРєР°РµРј РёРЅРґРµРєСЃС‹ РґР»СЏ РєР°Р¶РґРѕРіРѕ СѓСЂРѕРІРЅСЏ (РѕС‚ СЃС‚Р°СЂС€РёС… Р±РёС‚ Рє РјР»Р°РґС€РёРј)
     uint64_t indices[HANDLE_LEVELS];
     for (int i = 0; i < HANDLE_LEVELS; i++) {
         indices[i] = (handle >> (i * HANDLE_LEVEL_BITS)) & HANDLE_LEVEL_MASK;
@@ -57,7 +57,7 @@ static void** xtResolveHandle(XTProcess* process, uint64_t handle, int create) {
         current = (XTDescriptorTable**)&((*current)->entries[indices[level]]);
     }
 
-    // Теперь обрабатываем последний уровень (L0) явно
+    // РўРµРїРµСЂСЊ РѕР±СЂР°Р±Р°С‚С‹РІР°РµРј РїРѕСЃР»РµРґРЅРёР№ СѓСЂРѕРІРµРЅСЊ (L0) СЏРІРЅРѕ
     if (*current == NULL) {
         if (!create) return NULL;
         XTDescriptorTable* newTable = NULL;
@@ -70,28 +70,28 @@ static void** xtResolveHandle(XTProcess* process, uint64_t handle, int create) {
 }
 
 static uint64_t find_free_recursive(XTDescriptorTable* table, int level, uint64_t prefix) {
-    // Если таблица отсутствует, все handle с данным префиксом свободны.
-    // Возвращаем наименьший: prefix, дополненный нулями для оставшихся уровней.
+    // Р•СЃР»Рё С‚Р°Р±Р»РёС†Р° РѕС‚СЃСѓС‚СЃС‚РІСѓРµС‚, РІСЃРµ handle СЃ РґР°РЅРЅС‹Рј РїСЂРµС„РёРєСЃРѕРј СЃРІРѕР±РѕРґРЅС‹.
+    // Р’РѕР·РІСЂР°С‰Р°РµРј РЅР°РёРјРµРЅСЊС€РёР№: prefix, РґРѕРїРѕР»РЅРµРЅРЅС‹Р№ РЅСѓР»СЏРјРё РґР»СЏ РѕСЃС‚Р°РІС€РёС…СЃСЏ СѓСЂРѕРІРЅРµР№.
     if (table == NULL) {
         uint64_t remaining = HANDLE_LEVELS - level;
         return prefix << (remaining * HANDLE_LEVEL_BITS);
     }
 
-    // Последний уровень (L0) – ищем первый NULL в entries.
+    // РџРѕСЃР»РµРґРЅРёР№ СѓСЂРѕРІРµРЅСЊ (L0) вЂ“ РёС‰РµРј РїРµСЂРІС‹Р№ NULL РІ entries.
     if (level == HANDLE_LEVELS - 1) {
         for (uint64_t i = 0; i < (1ULL << HANDLE_LEVEL_BITS); i++) {
             if (table->entries[i] == NULL) {
                 return (prefix << HANDLE_LEVEL_BITS) | i;
             }
         }
-        return -1; // В этой таблице нет свободных слотов
+        return -1; // Р’ СЌС‚РѕР№ С‚Р°Р±Р»РёС†Рµ РЅРµС‚ СЃРІРѕР±РѕРґРЅС‹С… СЃР»РѕС‚РѕРІ
     }
 
-    // Промежуточный уровень – сначала рекурсивно обходим существующие подтаблицы,
-    // а при первом же отсутствующем слоте возвращаем свободный handle.
+    // РџСЂРѕРјРµР¶СѓС‚РѕС‡РЅС‹Р№ СѓСЂРѕРІРµРЅСЊ вЂ“ СЃРЅР°С‡Р°Р»Р° СЂРµРєСѓСЂСЃРёРІРЅРѕ РѕР±С…РѕРґРёРј СЃСѓС‰РµСЃС‚РІСѓСЋС‰РёРµ РїРѕРґС‚Р°Р±Р»РёС†С‹,
+    // Р° РїСЂРё РїРµСЂРІРѕРј Р¶Рµ РѕС‚СЃСѓС‚СЃС‚РІСѓСЋС‰РµРј СЃР»РѕС‚Рµ РІРѕР·РІСЂР°С‰Р°РµРј СЃРІРѕР±РѕРґРЅС‹Р№ handle.
     for (uint64_t i = 0; i < (1ULL << HANDLE_LEVEL_BITS); i++) {
         if (table->entries[i] == NULL) {
-            // Слот пуст → вся подветвь свободна. Берём наименьший handle из неё.
+            // РЎР»РѕС‚ РїСѓСЃС‚ в†’ РІСЃСЏ РїРѕРґРІРµС‚РІСЊ СЃРІРѕР±РѕРґРЅР°. Р‘РµСЂС‘Рј РЅР°РёРјРµРЅСЊС€РёР№ handle РёР· РЅРµС‘.
             uint64_t new_prefix = (prefix << HANDLE_LEVEL_BITS) | i;
             uint64_t remaining = HANDLE_LEVELS - level - 1;
             return new_prefix << (remaining * HANDLE_LEVEL_BITS);
@@ -104,7 +104,7 @@ static uint64_t find_free_recursive(XTDescriptorTable* table, int level, uint64_
             if (result != 0) return result;
         }
     }
-    return -1; // Свободных handle нет во всей ветке
+    return -1; // РЎРІРѕР±РѕРґРЅС‹С… handle РЅРµС‚ РІРѕ РІСЃРµР№ РІРµС‚РєРµ
 }
 
 XTResult xtFindFreeHandle(XTProcess* process, uint64_t* freeHandle) {
@@ -135,7 +135,7 @@ XTResult xtDuplicateHandle(XTProcess* process, uint64_t handle,
     XT_CHECK_ARG_IS_NULL(process);
     void** entry = xtResolveHandle(process, handle, 1);
     if (!entry) return XT_OUT_OF_MEMORY;
-    //if (*entry != NULL) return XT_FILE_ALREADY_EXISTS;  // или разрешить перезапись
+    //if (*entry != NULL) return XT_FILE_ALREADY_EXISTS;  // РёР»Рё СЂР°Р·СЂРµС€РёС‚СЊ РїРµСЂРµР·Р°РїРёСЃСЊ
 
     XTDescriptor* newDesc = NULL;
     XT_TRY(xtHeapAlloc(sizeof(XTDescriptor), (void**)&newDesc));
@@ -157,177 +157,184 @@ extern uint64_t threadCount;
 
 extern XTQueue* runQueue;
 
-// XTResult xtFindThreadList(XTThread* thread, XTList** out) {
-//     XT_CHECK_ARG_IS_NULL(thread);
-//     XT_CHECK_ARG_IS_NULL(out);
+XTResult xtFindThreadList(XTThread* thread, XTList** out) {
+    XT_CHECK_ARG_IS_NULL(thread);
+    XT_CHECK_ARG_IS_NULL(out);
 
-//     for (XTList* i = thread->process->threads; i; xtGetNextList(i, &i)) {
-//         XTThread* threadi = NULL;
-//         xtGetListData(i, &threadi);
-//         if (threadi == thread) {
-//             *out = i;
-//             return XT_SUCCESS;
-//         }
-//     }
-//     return XT_NOT_FOUND;
+    for (XTList* i = thread->process->threads; i; xtGetNextList(i, &i)) {
+        XTThread* threadi = NULL;
+        xtGetListData(i, &threadi);
+        if (threadi == thread) {
+            *out = i;
+            return XT_SUCCESS;
+        }
+    }
+    return XT_NOT_FOUND;
 
-// }
+}
 
 XTResult xtTerminateThread(XTThread* thread, XTResult code) {
     XT_CHECK_ARG_IS_NULL(thread);
+    xtLockSpinlock(&thread->lock);
     XTThread* currentThread = NULL;
     xtGetCurrentThread(&currentThread);
 
-    // Удаляем поток из глобального списка планировщика
-    XTList* threadIter = NULL;
-    xtFindThreadList(thread, &threadIter);
-    xtRemoveFromList(threads, threadIter);
-
-    // Помечаем поток завершённым
-    thread->state = (thread->state & ~0x7f) | XT_THREAD_TERMINATED_STATE;
     thread->result = code;
+    // РџРѕРјРµС‡Р°РµРј РїРѕС‚РѕРє Р·Р°РІРµСЂС€С‘РЅРЅС‹Рј
+    thread->state = (thread->state & ~0x7f) | XT_THREAD_TERMINATED_STATE;
+    for (
+        XTList* waitThreadList = thread->waitThreads; 
+        waitThreadList; 
+        xtGetNextList(waitThreadList, &waitThreadList)
+    ) {
+        XTThread* waitThread = NULL;
+        xtGetListData(waitThreadList, &waitThread);
+        waitThread->state = (waitThread->state & 0x80) | XT_THREAD_RUN_STATE;
+    }
+    xtUnlockSpinlock(&thread->lock);
 
-    // Уменьшаем счётчик активных потоков процесса
+
+
+    // РЈРјРµРЅСЊС€Р°РµРј СЃС‡С‘С‚С‡РёРє Р°РєС‚РёРІРЅС‹С… РїРѕС‚РѕРєРѕРІ РїСЂРѕС†РµСЃСЃР°
     if (thread->process) {
         thread->process->activeThreads--;
-        // Если это был последний поток, завершаем процесс
+        // Р•СЃР»Рё СЌС‚Рѕ Р±С‹Р» РїРѕСЃР»РµРґРЅРёР№ РїРѕС‚РѕРє, Р·Р°РІРµСЂС€Р°РµРј РїСЂРѕС†РµСЃСЃ
         if (thread->process->activeThreads == 0) {
-            // Проверим, не завершается ли процесс уже (флаг)
+            // РџСЂРѕРІРµСЂРёРј, РЅРµ Р·Р°РІРµСЂС€Р°РµС‚СЃСЏ Р»Рё РїСЂРѕС†РµСЃСЃ СѓР¶Рµ (С„Р»Р°Рі)
             if (!(thread->process->flags & XT_PROCESS_TERMINATING)) {
                 xtTerminateProcess(thread->process, code);
             }
         }
     }
 
-//     thread->state = (thread->state & ~0x7f) | XT_THREAD_TERMINATED_STATE;
-//     // Если завершаем текущий поток – переключаемся
-//     if (thread == currentThread) {
-//         xtSwitchToThread();  // не возвращается
-//     }
-//     return XT_SUCCESS;
-// }
+    // Р•СЃР»Рё Р·Р°РІРµСЂС€Р°РµРј С‚РµРєСѓС‰РёР№ РїРѕС‚РѕРє вЂ“ РїРµСЂРµРєР»СЋС‡Р°РµРјСЃСЏ
+    if (thread == currentThread) {
+        xtSwitchToThread();  // РЅРµ РІРѕР·РІСЂР°С‰Р°РµС‚СЃСЏ
+    }
+    return XT_SUCCESS;
+}
 
 
-// XTList* processess = NULL;
+XTList* processess = NULL;
 
-// uint64_t lastProcessId = 0;
+uint64_t lastProcessId = 0;
 
-// XTResult xtTerminateProcess(XTProcess* process, XTResult code) {
-//     XT_CHECK_ARG_IS_NULL(process);
-//     if (process->flags & XT_PROCESS_TERMINATING)
-//         return XT_SUCCESS;  // уже завершается
+XTResult xtTerminateProcess(XTProcess* process, XTResult code) {
+    XT_CHECK_ARG_IS_NULL(process);
+    if (process->flags & XT_PROCESS_TERMINATING)
+        return XT_SUCCESS;  // СѓР¶Рµ Р·Р°РІРµСЂС€Р°РµС‚СЃСЏ
 
-//     process->flags |= XT_PROCESS_TERMINATING;
-//     XTThread* currentThread = NULL;
-//     xtGetCurrentThread(&currentThread);
+    process->flags |= XT_PROCESS_TERMINATING;
+    XTThread* currentThread = NULL;
+    xtGetCurrentThread(&currentThread);
 
-//     // Завершаем все ещё живые потоки процесса (кроме текущего)
-//     XTList* threadIter = process->threads;
-//     while (threadIter) {
-//         XTThread* thread = NULL;
-//         xtGetListData(threadIter, &thread);
-//         XTList* next = NULL;
-//         xtGetNextList(threadIter, &next);
-//         if (thread && thread != currentThread &&
-//             (thread->flags & 0x7f) != XT_THREAD_TERMINATED_STATE) {
-//             xtTerminateThread(thread, code);
-//         }
-//         threadIter = next;
-//     }
+    // Р—Р°РІРµСЂС€Р°РµРј РІСЃРµ РµС‰С‘ Р¶РёРІС‹Рµ РїРѕС‚РѕРєРё РїСЂРѕС†РµСЃСЃР° (РєСЂРѕРјРµ С‚РµРєСѓС‰РµРіРѕ)
+    XTList* threadIter = process->threads;
+    while (threadIter) {
+        XTThread* thread = NULL;
+        xtGetListData(threadIter, &thread);
+        XTList* next = NULL;
+        xtGetNextList(threadIter, &next);
+        if (thread && thread != currentThread &&
+            (thread->state & 0x7f) != XT_THREAD_TERMINATED_STATE) {
+            xtTerminateThread(thread, code);
+        }
+        threadIter = next;
+    }
 
-//     // Если текущий поток принадлежит процессу – завершаем его (переключится)
-//     if (currentThread && currentThread->parentProcess == process) {
-//         xtTerminateThread(currentThread, code);
-//         // сюда не вернёмся
-//     }
+    // Р•СЃР»Рё С‚РµРєСѓС‰РёР№ РїРѕС‚РѕРє РїСЂРёРЅР°РґР»РµР¶РёС‚ РїСЂРѕС†РµСЃСЃСѓ вЂ“ Р·Р°РІРµСЂС€Р°РµРј РµРіРѕ (РїРµСЂРµРєР»СЋС‡РёС‚СЃСЏ)
+    if (currentThread && currentThread->process == process) {
+        xtTerminateThread(currentThread, code);
+        // СЃСЋРґР° РЅРµ РІРµСЂРЅС‘РјСЃСЏ
+    }
 
-//     // Если мы здесь – текущий поток из другого процесса, все потоки процесса TERMINATED
+    // Р•СЃР»Рё РјС‹ Р·РґРµСЃСЊ вЂ“ С‚РµРєСѓС‰РёР№ РїРѕС‚РѕРє РёР· РґСЂСѓРіРѕРіРѕ РїСЂРѕС†РµСЃСЃР°, РІСЃРµ РїРѕС‚РѕРєРё РїСЂРѕС†РµСЃСЃР° TERMINATED
 
-//     // Освобождаем структуры потоков (они всё ещё в process->threads)
-//     XTList* thrIter = process->threads;
-//     while (thrIter) {
-//         XTThread* thread = NULL;
-//         xtGetListData(thrIter, &thread);
-//         XTList* next = NULL;
-//         xtGetNextList(thrIter, &next);
-//         if (thread) {
-//             // Освобождаем kernelStack (если есть)
-//             if (thread->kernelStack) {
-//                 void* base = (uint8_t*)thread->kernelStack - 0x4000;
-//                 xtFreePages(base, 0x4000);
-//             }
-//             // TODO: освободить context, если необходимо
-//             xtHeapFree(thread);
-//         }
-//         xtDestroyList(thrIter);
-//         thrIter = next;
-//     }
-//     process->threads = NULL;
+    // РћСЃРІРѕР±РѕР¶РґР°РµРј СЃС‚СЂСѓРєС‚СѓСЂС‹ РїРѕС‚РѕРєРѕРІ (РѕРЅРё РІСЃС‘ РµС‰С‘ РІ process->threads)
+    XTList* thrIter = process->threads;
+    while (thrIter) {
+        XTThread* thread = NULL;
+        xtGetListData(thrIter, &thread);
+        XTList* next = NULL;
+        xtGetNextList(thrIter, &next);
+        if (thread) {
+            // РћСЃРІРѕР±РѕР¶РґР°РµРј kernelStack (РµСЃР»Рё РµСЃС‚СЊ)
+            if (thread->kernelStack) {
+                void* base = (uint8_t*)thread->kernelStack - 0x4000;
+                xtFreePages(base, 0x4000);
+            }
+            // TODO: РѕСЃРІРѕР±РѕРґРёС‚СЊ context, РµСЃР»Рё РЅРµРѕР±С…РѕРґРёРјРѕ
+            xtHeapFree(thread);
+        }
+        xtDestroyList(thrIter);
+        thrIter = next;
+    }
+    process->threads = NULL;
 
-//     // Освобождаем приватные физические страницы из memoryMap
-//     XTList* memIter = process->memoryMap;
-//     while (memIter) {
-//         XTVirtualMap* map = NULL;
-//         xtGetListData(memIter, &map);
-//         XTList* next = NULL;
-//         xtGetNextList(memIter, &next);
-//         if (map) {
-//             if (map->physicalAddress && (~(map->attr & XT_MEM_SHARED))) {
-//                 xtFreePages(map->physicalAddress, map->size);
-//             }
-//             xtHeapFree(map);
-//         }
-//         xtDestroyList(memIter);
-//         memIter = next;
-//     }
-//     process->memoryMap = NULL;
+    // РћСЃРІРѕР±РѕР¶РґР°РµРј РїСЂРёРІР°С‚РЅС‹Рµ С„РёР·РёС‡РµСЃРєРёРµ СЃС‚СЂР°РЅРёС†С‹ РёР· memoryMap
+    XTList* memIter = process->memoryMap;
+    while (memIter) {
+        XTVirtualMap* map = NULL;
+        xtGetListData(memIter, &map);
+        XTList* next = NULL;
+        xtGetNextList(memIter, &next);
+        if (map) {
+            if (map->physicalAddress && (~(map->attr & XT_MEM_SHARED))) {
+                xtFreePages(map->physicalAddress, map->size);
+            }
+            xtHeapFree(map);
+        }
+        xtDestroyList(memIter);
+        memIter = next;
+    }
+    process->memoryMap = NULL;
 
-//     // Освобождаем дерево дескрипторов
-//     if (process->descriptorRoot) {
-//         xtFreeDescriptorTree(process->descriptorRoot, HANDLE_LEVELS - 1);
-//         process->descriptorRoot = NULL;
-//     }
+    // РћСЃРІРѕР±РѕР¶РґР°РµРј РґРµСЂРµРІРѕ РґРµСЃРєСЂРёРїС‚РѕСЂРѕРІ
+    if (process->descriptorRoot) {
+        xtFreeDescriptorTree(process->descriptorRoot, HANDLE_LEVELS - 1);
+        process->descriptorRoot = NULL;
+    }
 
-//     for (XTList* l = processess; l; xtGetNextList(l, &l)) {
-//         XTProcess* ourProcess = NULL;
-//         xtGetListData(l, &ourProcess);
-//         if (ourProcess == process) {
-//             xtRemoveFromList(processess, l);
-//         }
-//     }
+    for (XTList* l = processess; l; xtGetNextList(l, &l)) {
+        XTProcess* ourProcess = NULL;
+        xtGetListData(l, &ourProcess);
+        if (ourProcess == process) {
+            xtRemoveFromList(processess, l);
+        }
+    }
 
-//     // Освобождаем таблицу страниц
-//     if (process->pageTable) {
-//         xtFreePages(process->pageTable, 0x1000);
-//     }
-//     if (process->id < lastProcessId) {
-//         lastProcessId = process->id;
-//     }
-//     // Освобождаем сам процесс
-//     xtHeapFree(process);
+    // РћСЃРІРѕР±РѕР¶РґР°РµРј С‚Р°Р±Р»РёС†Сѓ СЃС‚СЂР°РЅРёС†
+    if (process->pageTable) {
+        xtFreePages(process->pageTable, 0x1000);
+    }
+    if (process->id < lastProcessId) {
+        lastProcessId = process->id;
+    }
+    // РћСЃРІРѕР±РѕР¶РґР°РµРј СЃР°Рј РїСЂРѕС†РµСЃСЃ
+    xtHeapFree(process);
 
-//     return XT_SUCCESS;
-// }
+    return XT_SUCCESS;
+}
 
 extern void xtUserExit();
 
 
-// XTResult xtCreateProcess(    
-//     XTProcess* parentProcess,
-//     uint64_t flags,
-//     XTProcess** out
-// ) {
+XTResult xtCreateProcess(    
+    XTProcess* parentProcess,
+    uint64_t flags,
+    XTProcess** out
+) {
 
-//     XT_CHECK_ARG_IS_NULL(out);
+    XT_CHECK_ARG_IS_NULL(out);
 
     XTProcess* result = NULL;
     XT_TRY(xtHeapAlloc(sizeof(XTProcess), &result));
-
     void* newPageTable = NULL;
     XT_TRY(xtAllocatePages(NULL, 0x1000, &newPageTable));
-    xtSetMem(newPageTable, 0, 0x1000);
-    xtCopyMem((char*)newPageTable + 0x7f8, (char*)kernelPageTable + 0x7f8, 0x808);
-    
+    void* vnewPageTable = HIGHER_HALF_MEM(newPageTable);
+    void* vkernelPageTable = HIGHER_HALF_MEM(kernelPageTable);
+    xtSetMem(vnewPageTable, 0, 0x1000);
+    xtCopyMem((char*)vnewPageTable + 0x7f8, (char*)vkernelPageTable + 0x7f8, 0x808);
     result->pageTable = newPageTable;
     result->parentProcess = parentProcess;
     result->id = lastProcessId++;
@@ -340,10 +347,9 @@ extern void xtUserExit();
         xtAppendList(processess, newProcessList);
     }
     *out = result;
-    
     return XT_SUCCESS;
 
-// }
+}
 
 XTResult xtAllocateUserStack(
     XTProcess* process,
@@ -385,21 +391,63 @@ XTResult xtAllocateUserStack(
     return XT_SUCCESS;
 }
 
-uint64_t lastThreadId = 0;
 
-
+XTResult
+xtWaitForThread(
+    XTThread* thread,
+    XTResult* result
+) {
+    XT_CHECK_ARG_IS_NULL(thread);
+    XT_CHECK_ARG_IS_NULL(result);
+    xtLockSpinlock(&thread->lock);
+    if ((thread->state & 0x7f) == XT_THREAD_TERMINATED_STATE) {
+        *result = thread->result;
+        xtUnlockSpinlock(&thread->lock);
+        return XT_SUCCESS;
+    }
+    XTThread* currentThread = NULL;
+    xtGetCurrentThread(&currentThread);
+    XTList* currentList = NULL;
+    XT_TRY(xtCreateList(currentThread, &currentList));
+    if (thread->waitThreads) {
+        xtAppendList(thread->waitThreads, currentList);
+    }
+    else {
+        thread->waitThreads = currentList;
+    }
+    xtLockSpinlock(&currentThread->lock);
+    xtUnlockSpinlock(&thread->lock);
+    xtUnlockSpinlock(&currentThread->lock);
+    xtSleepThread(currentThread, UINT64_MAX);
+    *result = thread->result;
+    xtRemoveFromList(thread->waitThreads, currentList);
+    xtDestroyList(currentList);
+    return XT_SUCCESS;
+}
 
 XTResult XTEXPORT xtCreateThread(
     XTProcess* process, 
     PFNXTTHREADFUNC ThreadFunc, 
-    uint64_t stackSize, 
-    void* arg,
-    uint8_t state, 
+    size_t stackSize, 
+    void* arg, 
+    uint8_t state,
     XTThread** out
 ) {
-    void* kernel_stack = NULL;
-    XT_TRY(xtAllocatePages(NULL, 0x4000, &kernel_stack));
-    kernel_stack = HIGHER_HALF_MEM(kernel_stack);
+    if (stackSize == 0) {
+        stackSize = 0x100000;
+    }
+    
+    XT_CHECK_ARG_IS_NULL(ThreadFunc);
+    XT_CHECK_ARG_IS_NULL(out);
+
+    void* kernelStack = NULL;
+
+    XT_TRY(xtAllocatePages(NULL, 0x4000, &kernelStack));
+    kernelStack = HIGHER_HALF_MEM(kernelStack);
+
+    // 2. Р’С‹СЂР°РІРЅРёРІР°РЅРёРµ РїРѕ 16 Р±Р°Р№С‚ Рё СЂРµР·РµСЂРІ 32 Р±Р°Р№С‚Р° Shadow Space 
+    // (РїРѕ СЃРїРµС†РёС„РёРєР°С†РёРё MS ABI РґР»СЏ РІС‹Р·С‹РІР°РµРјРѕР№ С„СѓРЅРєС†РёРё)
+
     uint64_t stack_top = 0;
     uint64_t physStackTop = 0;
     if (state & XT_THREAD_USER) {
@@ -415,13 +463,15 @@ XTResult XTEXPORT xtCreateThread(
         physStackTop = (char*)hmmOut;
     }
     else {
-        stack_top = (char*)kernel_stack + 0x4000;
-        physStackTop = (char*)kernel_stack + 0x4000;
+        stack_top = (char*)kernelStack + 0x4000;
+        physStackTop = (char*)kernelStack + 0x4000;
     }
+    stack_top -= 40;
+    physStackTop -= 40; 
     void* ctx = NULL;
     xtSetContext(
-        process,
-        kernel_stack,
+        process, 
+        kernelStack,
         ThreadFunc,
         arg,
         physStackTop,
@@ -430,19 +480,41 @@ XTResult XTEXPORT xtCreateThread(
         &ctx
     );
 
-    XTThread* thread = NULL;
-    XTResult result = xtHeapAlloc(sizeof(XTThread), &thread);
-    if (XT_IS_ERROR(result)) {
-        xtFreePages(kernel_stack, 0x4000);
-        return result;
+    XTThread* result = NULL;
+
+    if (threads == NULL) {
+        XT_TRY(xtHeapAlloc(sizeof(XTThread), &result));
+        XT_TRY(xtCreateList(result, &threads));
+        xtSetCurrentThread(result);
+        currentThreadIterator = threads;
+        result->id = 0;
+    }
+    else {
+        for (XTList* i = threads; i; xtGetNextList(i, &i)) {
+            XTThread* thread = NULL;
+            xtGetListData(i, &thread);
+            if (thread->state == XT_THREAD_TERMINATED_STATE) {
+                result = thread;
+            }
+        }
+    }
+
+    if (result == NULL) {
+        XT_TRY(xtHeapAlloc(sizeof(XTThread), &result));
+        XTList* newList = NULL;
+        XT_TRY(xtCreateList(result, &newList));
+        xtAppendList(threads, newList);
+        result->id = ++threadCount;
     }
     result->process = process;
     result->context = ctx;
     result->result = 0;
     result->state = state;
-    result->privilage = 1;
-    result->ticks = 1;
+    result->privilage = 20;
+    result->ticks = 20;
     result->kernelStack = kernelStack+0x4000;
+    result->waitThreads = NULL;
+    xtInitSpinlock(&result->lock);
     XTList* threadList = NULL;
     XT_TRY(xtCreateList(result, &threadList));
     if (process->threads == NULL) {
@@ -451,6 +523,7 @@ XTResult XTEXPORT xtCreateThread(
     else {
         xtAppendList(process->threads, threadList);
     }
-    *out = thread;
+
+    *out = result;
     return XT_SUCCESS;
 }

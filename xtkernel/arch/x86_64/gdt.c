@@ -6,7 +6,7 @@
 #include "../../../external/printf.h"
 #include <stdatomic.h>
 
-// Стандартный дескриптор (8 байт)
+// РЎС‚Р°РЅРґР°СЂС‚РЅС‹Р№ РґРµСЃРєСЂРёРїС‚РѕСЂ (8 Р±Р°Р№С‚)
 typedef struct {
     uint16_t limit0;
     uint16_t base0;
@@ -16,7 +16,7 @@ typedef struct {
     uint8_t  base2;
 } __attribute__((packed)) GDTEntry;
 
-// Специальный дескриптор для TSS (если понадобится позже) — 16 байт
+// РЎРїРµС†РёР°Р»СЊРЅС‹Р№ РґРµСЃРєСЂРёРїС‚РѕСЂ РґР»СЏ TSS (РµСЃР»Рё РїРѕРЅР°РґРѕР±РёС‚СЃСЏ РїРѕР·Р¶Рµ) вЂ” 16 Р±Р°Р№С‚
 typedef struct {
     GDTEntry low;
     uint32_t base3;
@@ -34,7 +34,7 @@ typedef struct {
 } __attribute__((packed)) IDTR;
 
 
-// Индексы: 0-null, 1-kcode, 2-kdata, 3-ucode, 4-udata
+// РРЅРґРµРєСЃС‹: 0-null, 1-kcode, 2-kdata, 3-ucode, 4-udata
 GDTEntry gdt[8] = {
     {0}, // Null descriptor
     // Kernel Code (Base=0, Limit=0, Access=0x9A, Flags=0x20 [L bit set])
@@ -121,7 +121,7 @@ void xtSetInterrupts() {
 void xtRegDump() {
     XTThread* currentThread = NULL;
     xtGetCurrentThread(&currentThread);
-    XTInterruptableContext* context = currentThread->kernel_stack;
+    XTContext* context = currentThread->context;
     
     for (uint64_t i = 0; i < sizeof(registers)/sizeof(*registers);++i) {
         xtDebugPrint("% 6s=0x%016llx ", registers[i], ((uint64_t*)context)[i]);
@@ -133,7 +133,7 @@ void xtRegDump() {
 
 void xtSendEOI();
 
-void _xtSchedule();
+void xtSchedule();
 
 int returned = 0;
 
@@ -155,7 +155,7 @@ void xtPageFaultHandler() {
     XTProcess* currentProcess = NULL;
     xtGetCurrentProcess(&currentProcess);
     XTList* prev = NULL;
-    XTInterruptableContext* ctx = currentThread->kernel_stack;
+    XTContext* ctx = currentThread->context;
     uint64_t errorVM = ctx->cr2;
     XTVirtualMap* mapEntry = NULL;
 
@@ -242,20 +242,20 @@ uint32_t exceptionHasError = 0x500227d00;
 void xtExceptionHandler() {
     XTThread* currentThread = NULL;
     xtGetCurrentThread(&currentThread);
-    XTInterruptableContext* ctx = currentThread->kernel_stack;
+    XTContext* ctx = currentThread->context;
 
     if (ctx->interruptNumber == 0x20) {
         asm volatile("cli");
         xtSchedule();
         xtGetCurrentThread(&currentThread);
-        tss.rsp0 = currentThread->kernel_stack;
+        tss.rsp0 = currentThread->kernelStack;
         xtSendEOI();
         return;
     }
     if (ctx->interruptNumber == 0xe) {
         return xtPageFaultHandler();
     }
-    // Обработка других исключений, например #GP (13) или #DF (8)
+    // РћР±СЂР°Р±РѕС‚РєР° РґСЂСѓРіРёС… РёСЃРєР»СЋС‡РµРЅРёР№, РЅР°РїСЂРёРјРµСЂ #GP (13) РёР»Рё #DF (8)
     xtDebugPrint("thread %x\n", currentThread->id);
     char buff[64];
     int n = snprintf_(buff, 64, "%s", exceptionShortName[ctx->interruptNumber]);
@@ -353,8 +353,8 @@ void xtSetIRQs() {
 XTResult xtPITInit();
 
 XTResult xtDTInit() {
-    // Важно: LGDT просто загружает указатель. 
-    // Чтобы изменения вступили в силу, нужно перезагрузить сегментные регистры.
+    // Р’Р°Р¶РЅРѕ: LGDT РїСЂРѕСЃС‚Рѕ Р·Р°РіСЂСѓР¶Р°РµС‚ СѓРєР°Р·Р°С‚РµР»СЊ. 
+    // Р§С‚РѕР±С‹ РёР·РјРµРЅРµРЅРёСЏ РІСЃС‚СѓРїРёР»Рё РІ СЃРёР»Сѓ, РЅСѓР¶РЅРѕ РїРµСЂРµР·Р°РіСЂСѓР·РёС‚СЊ СЃРµРіРјРµРЅС‚РЅС‹Рµ СЂРµРіРёСЃС‚СЂС‹.
     
     idt = (GateEntry*)(0xffff800000000000);
 
@@ -380,7 +380,7 @@ XTResult xtDTInit() {
     uint16_t tssSegment = 0x6*8;
     asm volatile("lgdt %0" : : "m"(_gdtr));
 
-    //xtPITInit();
+    xtPITInit();
     xtSetIRQs();
 
 
@@ -388,7 +388,7 @@ XTResult xtDTInit() {
 
 
 
-    // После lgdt нужно сделать "far return" или "far jump" для обновления CS
-    // И обновить селекторы данных (ds, es, ss)
+    // РџРѕСЃР»Рµ lgdt РЅСѓР¶РЅРѕ СЃРґРµР»Р°С‚СЊ "far return" РёР»Рё "far jump" РґР»СЏ РѕР±РЅРѕРІР»РµРЅРёСЏ CS
+    // Р РѕР±РЅРѕРІРёС‚СЊ СЃРµР»РµРєС‚РѕСЂС‹ РґР°РЅРЅС‹С… (ds, es, ss)
     return XT_SUCCESS;
 }

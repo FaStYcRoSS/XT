@@ -131,5 +131,14 @@ XTResult xtUserCloseHandle(
     uint64_t handle
 );
 
+XTResult xtUserMount(
+    const char* path,
+    const char* fsName,
+    const char* dev
+);
+
+XTResult xtUserUnmount(
+    const char* path
+);
 
 #endif

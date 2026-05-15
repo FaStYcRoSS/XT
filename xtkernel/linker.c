@@ -578,13 +578,7 @@ XTResult xtExecuteProgram(
         XT_THREAD_USER | XT_THREAD_RUN_STATE,
         &thread
     ));
-<<<<<<< HEAD
-    if (mainThread) {
-        *mainThread = thread;
-    }
-=======
     *mainThread = thread;
->>>>>>> feature/test
     return XT_SUCCESS;
 }
 
