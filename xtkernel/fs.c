@@ -17,6 +17,7 @@ XTResult XTEXPORT xtWriteFile(XTFile* file, const void* data, uint64_t offset, u
     }
     XT_TRY(xtLockFile(file, XT_LOCK_WRITE));
     XTResult result = file->IO->WriteFile(file, data, offset, size, written);
+    xtSignalEvent(file->event);
     xtUnlockFile(file, XT_LOCK_WRITE);
     return result;
 }
@@ -322,7 +323,7 @@ XTResult XTEXPORT xtOpenFile(const char* path, uint64_t flags, XTFile** out) {
     if (XT_IS_ERROR(result)) return result;
     xtInitRWLock(&(*out)->lock);
     (*out)->flags = flags & ~(XT_FILE_MODE_CREATE);
-    xtAppendFile(buff, *out);
+    xtCreateEvent(&(*out)->event);
     return result;
 }
 
@@ -502,7 +503,7 @@ XTResult xtUnmount(const char* path) {
 XTResult XTEXPORT xtReadFile(XTFile* file, void* data, uint64_t offset, uint64_t size, uint64_t* read) {
     XT_CHECK_ARG_IS_NULL(file);
     XT_CHECK_ARG_IS_NULL(data);
-
+    xtResetEvent(file->event);
     if (file->IO == NULL) return XT_NOT_IMPLEMENTED;
 
     if (file->IO->ReadFile == NULL) return XT_NOT_IMPLEMENTED;
@@ -513,9 +514,9 @@ XTResult XTEXPORT xtReadFile(XTFile* file, void* data, uint64_t offset, uint64_t
         read = &tempRead;
     }
 
-    //XT_TRY(xtLockFile(file, XT_LOCK_READ));
+    XT_TRY(xtLockFile(file, XT_LOCK_READ));
     XTResult result = file->IO->ReadFile(file, data, offset, size, read);
-    //xtUnlockFile(file, XT_LOCK_READ);
+    xtUnlockFile(file, XT_LOCK_READ);
     return result;
 }
 
@@ -545,11 +546,6 @@ XTResult XTEXPORT xtDeleteFile(const char* path) {
     char* left = NULL;
     char buff[4096];
     XT_TRY(xtNormalizePath(path, buff, 4096));
-    XTFile* file = NULL;
-    XTResult result = xtFindFile(buff, &file);
-    if (result == XT_SUCCESS) {
-        if (!(file->flags & XT_FILE_SHARE_DELETE)) return XT_ACCESS_DENIED;
-    }
     XT_TRY(xtFindPathNode(buff, &pathNode, &left));
     if (pathNode == NULL) {
         xtDebugPrint("XT_ERROR: pathNode is NULL\n");
@@ -571,6 +567,6 @@ XTResult XTEXPORT xtDeleteFile(const char* path) {
         xtDebugPrint("XT_ERROR: pathNode->mp->fs->IO->OpenFile is NULL\n");
         return XT_NOT_IMPLEMENTED;
     }
-    result = pathNode->mp->fs->IO->DeleteFile(pathNode->mp, left);
+    XTResult result = pathNode->mp->fs->IO->DeleteFile(pathNode->mp, left);
     return result;
 }

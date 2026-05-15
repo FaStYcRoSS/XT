@@ -74,6 +74,18 @@ XTResult xtReleaseWrite(XTRWLock* lock) {
     return XT_SUCCESS;
 }
 
+XTResult xtCreateEvent(XTEvent** event) {
+    return XT_SUCCESS;
+}
+
+XTResult xtSignalEvent(XTEvent* event) {
+    return XT_SUCCESS;
+}
+
+XTResult xtResetEvent(XTEvent* event) {
+    return XT_SUCCESS;
+}
+
 XTResult xtGetTime(uint64_t* unixtime, uint64_t* nanoseconds) {
     *unixtime = _time64(NULL);
     *nanoseconds = 0;

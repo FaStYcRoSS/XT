@@ -5,6 +5,7 @@
 #include <xt/list.h>
 #include <stdint.h>
 #include <xt/rwlock.h>
+#include <xt/event.h>
 
 typedef struct XTFile XTFile;
 
@@ -39,7 +40,6 @@ struct XTDirectory {
     void* data;
     uint64_t pos;
 };
-
 
 typedef XTResult(*PFNXTWRITEFILE)(XTFile* file, const void* data, uint64_t offset, uint64_t count, uint64_t* written);
 typedef XTResult(*PFNXTREADFILE)(XTFile* file, void* data, uint64_t offset, uint64_t count, uint64_t* read);
@@ -99,19 +99,14 @@ struct XTFile {
     void* data;
     uint64_t flags;
     XTRWLock lock;
+    XTEvent* event;
 };
-
-typedef struct XTFileDescriptor {
-    XTFile* file;
-    uint64_t seek;
-} XTFileDescriptor;
 
 typedef struct XTDescriptor {
     void* desc;
     uint32_t type;
     uint32_t access;
 } XTDescriptor;
-
 
 #define XT_FILE_MODE_READ           0x01
 #define XT_FILE_MODE_WRITE          0x02
@@ -149,6 +144,9 @@ XTResult xtFlushBuffers(XTFile* file);
 
 XTResult xtRegisterFileSystem(XTFileSystem* fs);
 XTResult xtMakeFS(XTFile* file, const char* filesystem);
+
+XTResult xtRegisterDevice(const char* name, XTFile* file);
+XTResult xtUnregisterDevice(const char* name);
 
 XTResult xtCreatePipe(
     XTFile** write,

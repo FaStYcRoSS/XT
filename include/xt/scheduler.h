@@ -129,7 +129,6 @@ typedef struct XTPerCPUData {
 #define XT_THREAD_RUN_STATE        1
 #define XT_THREAD_LOADED_STATE     2
 #define XT_THREAD_TERMINATED_STATE 3
-#define XT_THREAD_WAIT_STATE       4
 
 #define XT_THREAD_USER             0x80
 #define XT_PROCESS_TERMINATING     1
@@ -160,6 +159,9 @@ XTResult xtTerminateProcess(
     XTResult result
 );
 
+XTResult xtWakeUpThread(
+    XTThread* thread
+);
 
 XTResult xtSleepThread(
     XTThread* thread,

@@ -35,6 +35,7 @@ typedef signed long long int XTResult;
 #define XT_ACCESS_VIOLATION            XT_ERROR(15)
 #define XT_WOULD_BLOCK                 XT_ERROR(16)
 #define XT_BROKEN_PIPE                 XT_ERROR(17)
+#define XT_TIMEOUT                     XT_ERROR(18)
 
 #define XT_TRY(x) do {XTResult __result = x; if (XT_IS_ERROR(__result)) return __result;} while(0)
 

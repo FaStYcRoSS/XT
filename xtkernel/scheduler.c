@@ -19,25 +19,16 @@ XTResult xtSleepThread(
     XTThread* thread,
     uint64_t milliseconds
 ) {
-
+    xtLockSpinlock(&thread->lock);
     XT_CHECK_ARG_IS_NULL(thread);
 
     thread->state = XT_THREAD_SLEEP_STATE;
     thread->ticks = milliseconds;
-    xtSwitchToThread();
-    return XT_SUCCESS;
-}
-
-XTResult xtWaitThread(XTThread* thread) {
-    xtLockSpinlock(&thread->lock);
-    thread->state = (thread->state & 0x7f) | XT_THREAD_WAIT_STATE;
-    thread->ticks = thread->privilage;
     xtUnlockSpinlock(&thread->lock);
     XTThread* currentThread = NULL;
     xtGetCurrentThread(&currentThread);
-    if (currentThread == thread) {
+    if (currentThread == thread)
         xtSwitchToThread();
-    }
     return XT_SUCCESS;
 }
 

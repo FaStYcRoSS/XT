@@ -416,10 +416,9 @@ xtWaitForThread(
         thread->waitThreads = currentList;
     }
     xtLockSpinlock(&currentThread->lock);
-    currentThread->state = (currentThread->state & 0x80) | XT_THREAD_WAIT_STATE;
     xtUnlockSpinlock(&thread->lock);
     xtUnlockSpinlock(&currentThread->lock);
-    xtSwitchToThread();
+    xtSleepThread(currentThread, UINT64_MAX);
     *result = thread->result;
     xtRemoveFromList(thread->waitThreads, currentList);
     xtDestroyList(currentList);
