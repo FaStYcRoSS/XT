@@ -58,7 +58,7 @@ typedef struct GenericAddressStructure
   uint8_t BitOffset;
   uint8_t AccessSize;
   uint64_t Address;
-} GenericAddressStructure;
+} __attribute__((packed)) GenericAddressStructure;
 
 typedef struct FADT
 {
@@ -120,6 +120,20 @@ typedef struct FADT
     GenericAddressStructure X_GPE0Block;
     GenericAddressStructure X_GPE1Block;
 } FADT;
+
+typedef struct HPET {
+    DescriptionHeader header;
+    uint8_t hardware_rev_id;
+    uint8_t comparator_count:5;
+    uint8_t counter_size:1;
+    uint8_t reserved:1;
+    uint8_t legacy_replacement:1;
+    uint16_t pci_vendor_id;
+    GenericAddressStructure address;
+    uint8_t hpet_number;
+    uint16_t minimum_tick;
+    uint8_t page_protection;
+} __attribute__((packed)) HPET;
 
 XTResult xtACPIInit();
 

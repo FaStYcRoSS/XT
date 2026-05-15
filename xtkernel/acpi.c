@@ -4,6 +4,8 @@
 
 RSDP* rootACPI = NULL;
 
+XTResult xtHPETInit();
+
 XTResult xtACPIInit() {
 
     EFI_GUID efiACPITable = ACPI_20_TABLE_GUID;
@@ -16,7 +18,7 @@ XTResult xtACPIInit() {
         EFI_CONFIGURATION_TABLE* table = (gKernelBootInfo->TablePtr) + i;
         if (xtCompareMemory(&table->VendorGuid, &efiACPITable, sizeof(EFI_GUID)) == XT_SUCCESS) {
             rootACPI = HIGHER_MEM(table->VendorTable);
-            return XT_SUCCESS;
+            return xtHPETInit();
         }
     }
     return XT_NOT_FOUND;

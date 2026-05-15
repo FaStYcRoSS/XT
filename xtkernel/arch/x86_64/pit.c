@@ -50,7 +50,7 @@ XTResult xtUnmaskIRQ(uint8_t irq);
 static XTResult io_wait(void) {
     // Запись в неиспользуемый порт (обычно 0x80 используется для POST кодов)
     // заставляет CPU подождать несколько микросекунд
-    return xtOutB(0x80, 0); 
+    return xtOutB(0x80, 0);
 }
 
 XTResult xtInitializePIC(void) {

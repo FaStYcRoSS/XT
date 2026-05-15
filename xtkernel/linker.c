@@ -90,6 +90,7 @@ XTResult xtFindModule(const char* filename, void** imageBase) {
 }
 
 XTResult xtGetEntryPoint(void* physImage, void* virtualImage, PFNXTFunc* out) {
+    physImage = HIGHER_HALF_MEM(physImage);
     PIMAGE_NT_HEADERS nt = (PIMAGE_NT_HEADERS)((uint8_t*)physImage + ((PIMAGE_DOS_HEADER)physImage)->e_lfanew);
     *out = (uint8_t*)virtualImage + nt->OptionalHeader.AddressOfEntryPoint;
     return XT_SUCCESS;
@@ -577,9 +578,13 @@ XTResult xtExecuteProgram(
         XT_THREAD_USER | XT_THREAD_RUN_STATE,
         &thread
     ));
+<<<<<<< HEAD
     if (mainThread) {
         *mainThread = thread;
     }
+=======
+    *mainThread = thread;
+>>>>>>> feature/test
     return XT_SUCCESS;
 }
 

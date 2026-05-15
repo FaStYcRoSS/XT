@@ -23,10 +23,26 @@ XTResult xtSyscallWriteFile(
     return xtUserWriteFile(arg0, arg1, arg2, arg3, arg4);
 }
 
+XTResult xtSyscallReadFile(
+    uint64_t arg0, 
+    uint64_t arg1, 
+    uint64_t arg2, 
+    uint64_t arg3, 
+    uint64_t* user_stack
+) {
+    uint64_t* arg4 = NULL;
+    xtCopyFromUser(&arg4, &user_stack[5], sizeof(uint64_t*));
+    return xtUserReadFile(arg0, arg1, arg2, arg3, arg4);
+}
+
 PFNXTSYSCALLENTRY xtSyscallArray[] = {
     xtUserTerminateThread,
     xtSyscallWriteFile,
-    xtUserReadFile
+    xtSyscallReadFile,
+    xtUserCreatePipe,
+    xtUserCreateProcess,
+    xtUserDuplicateHandle,
+    xtUserExecuteProgram
 };
 
 

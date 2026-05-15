@@ -227,7 +227,8 @@ XTResult vfatWriteFile(XTFile* file, const void* data, uint64_t offset, uint64_t
                 sfn.file_size = (offset + bytes_written);
             }
             uint64_t current_time = 0;
-            xtGetTime(&current_time);
+            uint64_t current_time_nanoseconds = 0;
+            xtGetTime(&current_time, &current_time_nanoseconds);
             XTTime tm = { 0 };
             xtGetTimeFromUnix(current_time, &tm);
             sfn.last_modifided_time = _create_time(tm.hour, tm.minutes, tm.seconds);
@@ -754,7 +755,8 @@ XTResult vfatCreateFile(XTMountPoint* mp, const char* name, uint64_t flags) {
     if (flags & XT_FILE_ATTRIBUTE_DIRECTORY) attr |= SUBDIR;
 
     uint64_t current_time = 0;
-    xtGetTime(&current_time);
+    uint64_t current_time_nanoseconds = 0;
+    xtGetTime(&current_time, &current_time_nanoseconds);
     XTTime time = { 0 };
     xtGetTimeFromUnix(current_time, &time);
     uint16_t dosdate = _create_date(time.year - 1980, time.month, time.mday);
@@ -775,8 +777,8 @@ XTResult vfatCreateFile(XTMountPoint* mp, const char* name, uint64_t flags) {
     _dirData->index = newIndex;
     XTFileInfo info = { 0 };
     info.createdTime = current_time;
-    info.lastAccessTime = 0;
-    info.lastWriteTime = 0;
+    info.lastAccessTime = current_time;
+    info.lastWriteTime = current_time;
     info.FileSize = 0;
     info.PhysicalSize = 0;
     info.flags = flags;
@@ -859,6 +861,38 @@ XTResult vfatOpenFile(XTMountPoint* mp, const char* name, uint64_t flags, XTFile
     return XT_SUCCESS;
 }
 
+XTResult vfatDeleteFile(XTMountPoint* mp, const char* path) {
+    char* left = NULL;
+    XTFile* parentDir = NULL;
+    vfatFindFile(mp, path, &left, &parentDir);
+    vfatFileData* data = parentDir->data;
+    uint32_t parentCluster = data->firstCluster;
+    sfn_dir_entry sfn;
+    // Читаем данные файла по найденному индексу
+    xtReadFile(parentDir, &sfn, data->index * sizeof(sfn_dir_entry), sizeof(sfn_dir_entry), NULL);
+    sfn.name[0] = 0xe5;
+    xtWriteFile(parentDir, &sfn, data->index * sizeof(sfn_dir_entry), sizeof(sfn_dir_entry), NULL);
+    uint32_t firstCluster = sfn.firstClusterLow | (uint32_t)sfn.firstClusterHigh << 16;
+    sfn_dir_entry temp_sfn = { 0 };
+    int lfnCount = 0;
+    uint8_t order = 0;
+    do {
+        xtReadFile(parentDir, &temp_sfn, (data->index - lfnCount - 1) * sizeof(sfn_dir_entry), sizeof(sfn_dir_entry), NULL);
+        order = temp_sfn.name[0];
+        if (temp_sfn.attributes == 0xf) {
+            temp_sfn.name[0] = 0xe5;
+            xtWriteFile(parentDir, &temp_sfn, (data->index - lfnCount - 1) * sizeof(sfn_dir_entry), sizeof(sfn_dir_entry), NULL);
+            ++lfnCount;
+        }
+    } while(temp_sfn.attributes == 0xf && !(order & ORed));
+    do {
+        firstCluster = get_next_cluster(mp, firstCluster);
+        set_next_cluster(mp, firstCluster, 0);
+    } while (firstCluster != EOC);
+    xtHeapFree(data);
+    xtHeapFree(parentDir);
+    return XT_SUCCESS;
+}
 
 XTResult vfatOpenDirectory(XTMountPoint* mp, const char* path, XTDirectory* out) {
     char* left = NULL;

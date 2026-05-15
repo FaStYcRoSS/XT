@@ -32,7 +32,7 @@ compile: ./build/xtos.img
 
 run:
 	qemu-system-x86_64 \
-	-D logs/log.txt -d int,in_asm -D logs/log.txt -monitor stdio -no-reboot -no-shutdown \
+	-D logs/log.txt -d int,in_asm -D logs/log.txt -monitor stdio \
 	-bios ./build/ovmf-code-x86_64.fd \
 	-usb \
 	-drive format=raw,unit=0,file=./build/xtos1.img \

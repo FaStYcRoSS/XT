@@ -4,6 +4,7 @@
 #include <xt/scheduler.h>
 #include <xt/kernel.h>
 #include "../../../external/printf.h"
+#include <stdatomic.h>
 
 // Стандартный дескриптор (8 байт)
 typedef struct {
@@ -103,6 +104,20 @@ void xtHalt() {
     asm volatile("hlt;");
 }
 
+void xtPause() {
+    asm volatile("pause;");
+}
+
+extern int bKernelWasInitialised;
+
+void xtClearInterrupts() {
+    asm volatile("cli");
+}
+void xtSetInterrupts() {
+    if (bKernelWasInitialised)
+        asm volatile("sti");
+}
+
 void xtRegDump() {
     XTThread* currentThread = NULL;
     xtGetCurrentThread(&currentThread);
@@ -144,7 +159,7 @@ void xtPageFaultHandler() {
     uint64_t errorVM = ctx->cr2;
     XTVirtualMap* mapEntry = NULL;
 
-    if (ctx->cs != 0x2b) {
+    if ((ctx->cs & 0x3) == 0) {
         for (ExceptionEntry* e = __start_ex_table; e < __stop_ex_table; e++) {
             if (e->fault_rip == ctx->rip) {
                 ctx->rip = e->fixup;
@@ -161,10 +176,10 @@ void xtPageFaultHandler() {
         &prev
     );
     if (result == XT_NOT_FOUND) {
-        xtTerminateThread(currentThread, XT_ACCESS_DENIED);
+        xtTerminateThread(currentThread, XT_ACCESS_VIOLATION);
     }
     if ((ctx->errorCode & 0x2) && !(mapEntry->attr & XT_MEM_WRITE)) {
-        xtTerminateThread(currentThread, XT_ACCESS_DENIED);
+        xtTerminateThread(currentThread, XT_ACCESS_VIOLATION);
     }
 
     void* newPage = NULL;
@@ -241,7 +256,7 @@ void xtExceptionHandler() {
         return xtPageFaultHandler();
     }
     // Обработка других исключений, например #GP (13) или #DF (8)
-    xtDebugPrint("thread %llx\n", currentThread);
+    xtDebugPrint("thread %x\n", currentThread->id);
     char buff[64];
     int n = snprintf_(buff, 64, "%s", exceptionShortName[ctx->interruptNumber]);
     if ((exceptionHasError >> ctx->interruptNumber) & 0x1) {

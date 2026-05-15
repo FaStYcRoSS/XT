@@ -1,6 +1,9 @@
 #ifndef __XT_KERNEL_H__
 #define __XT_KERNEL_H__
 
+#define HIGH_MEM (0xffff800000000000)
+#define HIGHER_MEM(x) (((uint64_t) (x)) | HIGH_MEM)
+
 #include <xt/efi.h>
 
 #include <xt/result.h>
@@ -21,8 +24,7 @@ XTResult xtKernelPanic(const char* description, void* instruction, XTResult resu
 
 extern KernelBootInfo* gKernelBootInfo;
 
-#define HIGH_MEM (0xffff800000000000)
-#define HIGHER_MEM(x) (((uint64_t) (x)) | HIGH_MEM)
+
 
 #define XTEXPORT __declspec(dllexport)
 

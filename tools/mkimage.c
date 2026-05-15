@@ -42,7 +42,6 @@ XTResult xtGetFolderSize(const char* path, uint64_t* size) {
 }
 
 XTResult xtRecursiveCopy(const char* source, const char* dest) {
-    printf("source %s dest %s\n", source, dest);
     XTDirectory* dsource = NULL;
     xtOpenDirectory(source, &dsource);
     XTFileInfo info = { 0 };
@@ -68,7 +67,6 @@ XTResult xtRecursiveCopy(const char* source, const char* dest) {
         xtCopyMem(newSourceName + sourceLen, "/", 1);
         xtCopyMem(newSourceName + sourceLen + 1, info.name, nameLen);
         newSourceName[sourceLen + 1 + nameLen] = 0;
-        printf("newSourceName %s newDestName %s\n", newSourceName, newDestName);
         XTFile* newfile = NULL;
         XTResult result = xtOpenFile(newDestName, info.flags, &newfile);
         if (result == XT_NOT_FOUND) {
@@ -76,11 +74,11 @@ XTResult xtRecursiveCopy(const char* source, const char* dest) {
         }
         XTFileInfo newFileInfo = { 0 };
         xtGetFileInfo(newfile, &newFileInfo);
-        printf("info.lastWriteTime %llu newFileInfo.lastWriteTime %llu\n", info.lastWriteTime, newFileInfo.lastWriteTime);
+        printf("info.lastWriteTime %llu newFileInfo.lastWriteTime %llu newDestName %s\n", 
+            info.lastWriteTime, newFileInfo.lastWriteTime, newDestName);
         // if (newFileInfo.lastWriteTime != 0 && info.lastWriteTime <= newFileInfo.lastWriteTime) {
         //     continue;   // пропускаем, если исходник не новее существующего
         // }
-        printf("flags %llx\n", info.flags);
         if (info.flags & XT_FILE_ATTRIBUTE_DIRECTORY) {
             xtRecursiveCopy(newSourceName, newDestName);
         }

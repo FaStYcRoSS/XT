@@ -1,8 +1,10 @@
 #ifndef __XT_SCHEDULER_H__
 #define __XT_SCHEDULER_H__
 
+#include <xt/result.h>
 #include <xt/list.h>
 #include <xt/io.h>
+#include <xt/spinlock.h>
 #ifdef __x86_64__
 #include <xt/arch/x86_64.h>
 #endif
@@ -76,7 +78,7 @@ XTResult xtDuplicateHandle(
 XTResult xtGetHandle(
     XTProcess* process,
     uint64_t handle,
-    XTDescriptor** out
+    struct XTDescriptor** out
 );
 
 
@@ -105,6 +107,7 @@ XTResult xtFindVirtualMap(
 
 
 typedef struct XTThread {
+<<<<<<< HEAD
     void* kernel_stack;
     XTProcess* parentProcess;
     struct XTThread* nextInQueue;
@@ -112,6 +115,19 @@ typedef struct XTThread {
     uint32_t ticks;
     uint8_t flags;
     uint8_t priority;
+=======
+    void* context; //0x0
+    XTResult result; //8
+    uint32_t id; //16
+    uint8_t state; //20
+    uint8_t privilage; //21
+    uint16_t flags; //22
+    uint64_t ticks; //24
+    XTProcess* process;//32
+    void* kernelStack; //40
+    XTList* waitThreads;
+    XTSpinlock lock;
+>>>>>>> feature/test
 } XTThread;
 
 typedef struct XTPerCPUData {
@@ -120,17 +136,25 @@ typedef struct XTPerCPUData {
     XTThread* tailRunThread;
 } XTPerCPUData;
 
+<<<<<<< HEAD
 #define XT_THREAD_SLEEP_STATE         0
 #define XT_THREAD_RUN_STATE           1
 #define XT_THREAD_LOADED_STATE        2
 #define XT_THREAD_TERMINATED_STATE    3
 #define XT_THREAD_WAIT_STATE          4
 #define XT_THREAD_INTERRUPTABLE_STATE 5
+=======
+#define XT_THREAD_SLEEP_STATE      0
+#define XT_THREAD_RUN_STATE        1
+#define XT_THREAD_LOADED_STATE     2
+#define XT_THREAD_TERMINATED_STATE 3
+>>>>>>> feature/test
 
 #define XT_THREAD_USER             0x80
 #define XT_PROCESS_TERMINATING     1
 
 XTResult
+<<<<<<< HEAD
 xtWaitForMultipleObjects(
     XTThread* thread,
     XTWaitable** waits,
@@ -141,6 +165,11 @@ xtWaitForMultipleObjects(
 XTResult
 xtWakeUp(
     XTWaitable* waitable
+=======
+xtWaitForThread(
+    XTThread* thread,
+    XTResult* result
+>>>>>>> feature/test
 );
 
 XTResult 
@@ -163,6 +192,9 @@ XTResult xtTerminateProcess(
     XTResult result
 );
 
+XTResult xtWakeUpThread(
+    XTThread* thread
+);
 
 XTResult xtSleepThread(
     XTThread* thread,
@@ -183,7 +215,6 @@ XTResult xtCreateProcess(
     uint64_t flags,
     XTProcess** out
 );
-
 
 #define XT_SHUTDOWN_POWER_OFF 0
 #define XT_SHUTDOWN_REBOOT    1
